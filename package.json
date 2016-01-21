@@ -1,0 +1,20 @@
+{
+  "name": "elm-graphql",
+  "version": "0.1.0",
+  "description": "GraphQL to Elm",
+  "main": "lib/elm-graphql.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc src/elm-graphql.ts --outDir lib --target ES5 --module commonjs",
+    "start": "node lib/elm-graphql.js"
+  },
+  "author": "John Hewson",
+  "license": "BSD",
+  "dependencies": {
+    "graphql": "^0.4.14"
+  },
+  "devDependencies": {
+    "typescript": "^1.7.5"
+  },
+  "private": true
+}
