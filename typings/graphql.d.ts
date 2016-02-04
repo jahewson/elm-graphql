@@ -22,3 +22,14 @@ declare module "graphql/type" {
   export class GraphQLBoolean extends GraphQLScalarType { constructor(config: any) }
   export class GraphQLID extends GraphQLScalarType { constructor(config: any) }
 }
+
+/**
+ * GraphQL parser.
+ */
+declare module "graphql/language"{
+  export class Document {
+    // ...
+  }
+
+  export function parse(source: string, options?): Document;
+}
