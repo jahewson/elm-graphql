@@ -198,15 +198,18 @@ function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
     let prefix = '';
 
     // lists or non-null of leaf types only
+    let t: GraphQLType;
     if (type instanceof GraphQLList) {
-      type = type.ofType;
+      t = type.ofType;
       prefix = 'List ';
     } else if (type instanceof GraphQLNonNull) {
-      type = type.ofType;
+      t = type.ofType;
     } else {
       // implicitly nullable
       prefix = 'Maybe ';
+      t = type;
     }
+    type = t;
 
     // leaf types only
     if (type instanceof GraphQLScalarType) {
@@ -215,21 +218,21 @@ function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
       seenEnums.push(type);
       return prefix + type.name;
     } else {
-      throw new Error('not a leaf type: ' + type.name);
+      throw new Error('not a leaf type: ' + (<any>type).name);
     }
   }
 
   // input types are defined in the query, not the schema
   // fixme: return an AST instead
-  function inputTypeToString(type: GraphQLInputType): string {
+  function inputTypeToString(type: GraphQLType): string {
     let prefix = '';
 
     // lists or non-null of leaf types only
     if (type instanceof GraphQLList) {
-      type = type.ofType;
+      type = (<any>type).ofType;
       prefix = 'List ';
     } else if (type instanceof GraphQLNonNull) {
-      type = type.ofType;
+      type =  (<any>type).ofType;
     } else {
       // implicitly nullable
       prefix = 'Maybe ';
@@ -241,7 +244,7 @@ function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
     } else if (type instanceof GraphQLScalarType) {
       return prefix + type.name;
     } else {
-      throw new Error('not a leaf type: ' + type.constructor.name);
+      throw new Error('not a leaf type: ' + (<any>type.constructor).name);
     }
   }
 

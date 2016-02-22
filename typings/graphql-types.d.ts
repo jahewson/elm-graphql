@@ -2,32 +2,24 @@
  * GraphQL types. See: http://graphql.org/docs/api-reference-type-system
  */
 declare module "graphql/type" {
-  // Types
-  export type GraphQLType =
-    GraphQLScalarType |
-    GraphQLObjectType |
-    GraphQLInterfaceType |
-    GraphQLUnionType |
-    GraphQLEnumType |
-    GraphQLInputObjectType |
-    GraphQLList |
-    GraphQLNonNull;
+  export abstract class GraphQLType {}
 
+  // Types
   export type GraphQLOutputType =
     GraphQLScalarType |
       GraphQLObjectType |
       GraphQLInterfaceType |
       GraphQLUnionType |
       GraphQLEnumType |
-      GraphQLList<GraphQLOutputType> |
-      GraphQLNonNull<
+      GraphQLList | //<GraphQLOutputType> |
+      GraphQLNonNull/*<
         GraphQLScalarType |
           GraphQLObjectType |
           GraphQLInterfaceType |
           GraphQLUnionType |
           GraphQLEnumType |
           GraphQLList<GraphQLOutputType>
-        >;
+        >;*/
 
   type TypeMap = { [typeName: string]: GraphQLType }
 
@@ -51,13 +43,13 @@ declare module "graphql/type" {
     GraphQLScalarType |
       GraphQLEnumType |
       GraphQLInputObjectType |
-      GraphQLList<GraphQLInputType> |
-      GraphQLNonNull<
+      GraphQLList | //<GraphQLInputType> |
+      GraphQLNonNull/*<
         GraphQLScalarType |
           GraphQLEnumType |
           GraphQLInputObjectType |
           GraphQLList<GraphQLInputType>
-        >;
+        >;*/
 
   // Schema
   export class GraphQLSchema {
@@ -73,9 +65,12 @@ declare module "graphql/type" {
   }
 
   // Definitions
-  export class GraphQLScalarType { constructor(config: any) }
+  export class GraphQLScalarType extends GraphQLType {
+    name: string;
+    constructor(config: any)
+  }
 
-  export class GraphQLObjectType {
+  export class GraphQLObjectType extends GraphQLType {
     constructor(config: any);
 
     getFields(): GraphQLFieldDefinitionMap;
@@ -95,10 +90,17 @@ declare module "graphql/type" {
     deprecationReason?: string;
   }
 
-  export class GraphQLInterfaceType { constructor(config: any) }
-  export class GraphQLUnionType { constructor(config: any) }
+  export class GraphQLInterfaceType extends GraphQLType {
+    name: string;
+    constructor(config: any)
+  }
 
-  export class GraphQLEnumType {
+  export class GraphQLUnionType extends GraphQLType {
+    name: string;
+    constructor(config: any)
+  }
+
+  export class GraphQLEnumType extends GraphQLType {
     name: string;
     description: string;
 
@@ -113,9 +115,20 @@ declare module "graphql/type" {
     value: any/* T */;
   }
 
-  export class GraphQLInputObjectType { constructor(config: any) }
-  export class GraphQLList<T> { constructor(config: any) }
-  export class GraphQLNonNull<T> { constructor(config: any) }
+  export class GraphQLInputObjectType extends GraphQLType {
+    name: string;
+    constructor(config: any)
+  }
+
+  export class GraphQLList extends GraphQLType {
+    ofType: GraphQLType;
+    constructor(config: any)
+  }
+
+  export class GraphQLNonNull extends GraphQLType {
+    ofType: GraphQLType;
+    constructor(config: any)
+  }
   
   // Scalars
   export class GraphQLInt extends GraphQLScalarType { constructor(config: any) }
@@ -124,14 +137,3 @@ declare module "graphql/type" {
   export class GraphQLBoolean extends GraphQLScalarType { constructor(config: any) }
   export class GraphQLID extends GraphQLScalarType { constructor(config: any) }
 }
-
-// /**
-//  * GraphQL parser.
-//  */
-// declare module "graphql/language"{
-//   export class Document {
-//     // ...
-//   }
-//
-//   export function parse(source: string, options?): Document;
-// }
