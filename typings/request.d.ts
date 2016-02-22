@@ -5,7 +5,7 @@
 
 // Imported from: https://github.com/soywiz/typescript-node-definitions/d.ts
 
-/// <reference path="node.d.ts" />
+/// <reference path="./node.d.ts" />
 
 declare module 'request' {
 	import stream = require('stream');
