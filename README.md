@@ -50,7 +50,7 @@ You can also provide your own arguments:
 
 ## Example
 
-Here's a GraphQL query which uses the the [starwars schema]:(https://github.com/jahewson/graphql-starwars/blob/master/src/thirdparty/starWarsSchema.js)
+Here's a GraphQL query which uses the the [starwars schema](https://github.com/jahewson/graphql-starwars/blob/master/src/thirdparty/starWarsSchema.js):
 
 ```graphql
 query queryFriends($id: String!) {
