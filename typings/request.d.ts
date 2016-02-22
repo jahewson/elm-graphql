@@ -5,13 +5,12 @@
 
 // Imported from: https://github.com/soywiz/typescript-node-definitions/d.ts
 
-/// <reference path="../node/node.d.ts" />
-/// <reference path="../form-data/form-data.d.ts" />
+/// <reference path="node.d.ts" />
 
 declare module 'request' {
 	import stream = require('stream');
 	import http = require('http');
-	import FormData = require('form-data');
+	//import FormData = require('form-data');
 	import url = require('url');
 	import fs = require('fs');
 
@@ -77,7 +76,7 @@ declare module 'request' {
 			baseUrl?: string;
 			callback?: (error: any, response: http.IncomingMessage, body: any) => void;
 			jar?: any; // CookieJar
-			formData?: any; // Object
+			//formData?: any; // Object
 			form?: any; // Object or string
 			auth?: AuthOptions;
 			oauth?: OAuthOptions;
@@ -173,7 +172,7 @@ declare module 'request' {
 			setHeader(name: string, value: string, clobber?: boolean): Request;
 			setHeaders(headers: Headers): Request;
 			qs(q: Object, clobber?: boolean): Request;
-			form(): FormData.FormData;
+			//form(): FormData.FormData;
 			form(form: any): Request;
 			multipart(multipart: RequestPart[]): Request;
 			json(val: any): Request;
