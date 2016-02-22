@@ -36,9 +36,17 @@ This is a work in progress, still to do:
     
 ## Run
 
-This demo converts the starwars schema to Elm:
+First, you'll need a GraphQL server running on local host.
+Clone my [graphql-starwars](https://github.com/jahewson/graphql-starwars) repo to
+get up and running quickly.
 
-    node lib/elm-graphql.js
+Now you can convert the `queries.graphql` file to Elm, using the live starwars schema:
+
+    node lib/query-to-elm.js
+
+You can also provide your own arguments:
+
+    node lib/query-to-elm.js [endpointUri] [elmModuleName] [graphqlFile]
 
 ## Example
 
