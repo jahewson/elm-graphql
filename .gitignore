@@ -2,4 +2,6 @@
 /node_modules
 /src/*.js
 /src/*.map
-
+/typings/*.js
+/typings/*.map
+/graphql.config.json

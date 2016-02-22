@@ -8,14 +8,26 @@
 It's being developed at the bi-weekly [Elm Hackathon](http://www.meetup.com/Elm-user-group-SF/).
 Contributions are welcome.
 
-The current prototype uses [graphql-js](https://github.com/graphql/graphql-js) to parse a GraphQL
-schema, then generates the corresponding Elm type declarations. The code is in TypeScript, though
-it's essentially vanilla ES6.
+This prototype consists of a code generator which takes GraphQL schema and named queries in a
+.graphql file and generates corresponding Elm types. The schema is obtained by introspection
+of a live GraphQL server.
 
-Right now we're generating types corresponding to the overall schema, but the plan is to generate
-types and query wrapper code for each individual query, because a query can ask for only *some*
-fields from the schema. By generating types for each query, we should be able to cut down on the
-number of Maybe types which are needed.
+The type of each query is a single large record. We do not generate type aliases for each "object",
+because GraphQL allows different fields to be selected for the same type at different nesting
+levels within the same query. Elm's extensible records mean that there's really no reason to want
+to do this anyway.
+
+We use Facebook's [graphql-js](https://github.com/graphql/graphql-js) to parse a GraphQL
+schema.
+
+This is a work in progress, still to do:
+
+- [ ] Fragments (these could become type aliases?)
+- [ ] ID types (i.e. references)
+- [ ] Mutation
+- [ ] Directives
+- [ ] Default values (for parameters - use a Maybe?)
+- [ ] Aliases
 
 ## Build
 
@@ -28,46 +40,51 @@ This demo converts the starwars schema to Elm:
 
     node lib/elm-graphql.js
 
-## Sample Output
+## Example
 
-Here's the Elm type declarations generated from the starwars schema:
+Here's a GraphQL query which uses the the starwars schema:
+
+```graphql
+query queryFriends($id: String!) {
+    human(id: $id) {
+        name
+        appearsIn
+        friends {
+            name
+        }
+    }
+}
+```
+
+And here's the Elm type declarations generated for the query:
 
 ```elm
-type alias Query =
-    { hero : Maybe Character
-    , human : Maybe Human
-    , droid : Maybe Droid
-    }
-
-
-type alias Character =
-    { id : String
-    , name : Maybe String
-    , friends : Maybe (List Character)
-    , appearsIn : Maybe (List Episode)
-    }
-
-
-type alias Human =
-    { id : String
-    , name : Maybe String
-    , friends : Maybe (List Character)
-    , appearsIn : Maybe (List Episode)
-    , homePlanet : Maybe String
-    }
-
-
-type alias Droid =
-    { id : String
-    , name : Maybe String
-    , friends : Maybe (List Character)
-    , appearsIn : Maybe (List Episode)
-    , primaryFunction : Maybe String
-    }
-
+module StarWars (..) where
 
 type Episode
     = NEWHOPE
     | EMPIRE
     | JEDI
+
+
+type alias QueryFriendsResult =
+    { human :
+        { name : Maybe String
+        , appearsIn : List Episode
+        , friends :
+            { name : Maybe String
+            }
+        }
+    }
 ```
+
+We also generate a function to execute the query:
+
+```elm
+queryFriends : String -> Task Http.Error QueryFriendsResult
+queryFriends id =
+    GraphQL.query "queryFriends" [id]
+```
+
+Note that this code doesn't run yet as I'm still working on
+implementing the GraphQL.query function.

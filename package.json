@@ -2,21 +2,20 @@
   "name": "elm-graphql",
   "version": "0.1.0",
   "description": "GraphQL to Elm",
-  "main": "lib/elm-graphql.js",
+  "main": "lib/query-to-elm.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc src/elm-graphql.ts --outDir lib --target ES5 --module commonjs",
-    "start": "node lib/elm-graphql.js"
+    "build": "tsc src/query-to-elm.ts --outDir lib --target ES5 --module commonjs",
+    "start": "node lib/query-to-elm.js"
   },
   "author": "John Hewson",
   "license": "BSD",
+  "private": true,
   "dependencies": {
     "graphql": "^0.4.14",
-    "lokka": "^1.6.1",
-    "lokka-transport-http": "^1.3.0"
+    "request": "^2.69.0"
   },
   "devDependencies": {
-    "typescript": "^1.7.5"
-  },
-  "private": true
+    "typescript": "^1.8.0"
+  }
 }
