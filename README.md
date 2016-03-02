@@ -36,8 +36,4 @@ This is a work in progress, still to do:
     
 ## Demo
 
-First, you'll need a GraphQL server running on local host.
-Clone my [graphql-starwars](https://github.com/jahewson/graphql-starwars) repo to
-get up and running quickly.
-
-Next, you'll want to clone my [elm-graphql-demo](https://github.com/jahewson/elm-graphql-demo) which provides a sample application and includes elm-graphql as a submodule (prior to publication).
+Check out my [elm-graphql-demo](https://github.com/jahewson/elm-graphql-demo) which provides a sample application and includes full build instructions.
