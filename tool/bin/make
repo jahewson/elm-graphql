@@ -1,0 +1,3 @@
+#!/bin/bash
+dir=`dirname $0`
+node $dir/../lib/query-to-elm.js $1 $2

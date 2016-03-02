@@ -1,9 +1,0 @@
-query queryFriends($id: String!) {
-    human(id: $id) {
-        name
-        appearsIn
-        friends {
-            name
-        }
-    }
-}

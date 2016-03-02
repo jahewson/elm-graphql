@@ -1,25 +1,6 @@
 /**
  * Copyright (c) 2016, John Hewson
  * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     1. Redistributions of source code must retain the above copyright
- *        notice, this list of conditions and the following disclaimer.
- *     2. Redistributions in binary form must reproduce the above copyright
- *        notice, this list of conditions and the following disclaimer in the
- *        documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
- * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /// <reference path="../typings/node.d.ts" />
@@ -29,6 +10,7 @@
 /// <reference path="../typings/graphql-utilities.d.ts" />
 
 import * as fs from 'fs';
+import * as path from 'path';
 import * as request from 'request';
 
 import {
@@ -37,7 +19,8 @@ import {
   SelectionSet,
   Field,
   Document,
-  parse
+  parse,
+  print
 } from "graphql/language";
 
 import {
@@ -45,7 +28,7 @@ import {
   ElmDecl,
   ElmType,
   ElmParameter,
-  moduleToElm
+  moduleToElm, ElmExpr, ElmFunction
 } from './elm-ast';
 
 import {
@@ -55,7 +38,7 @@ import {
   GraphQLScalarType,
   GraphQLEnumType,
   GraphQLType,
-  GraphQLInputType
+  GraphQLObjectType
 } from 'graphql/type';
 
 import {
@@ -65,12 +48,26 @@ import {
   typeFromAST,
 } from 'graphql/utilities';
 
-let uri = process.argv[2] || 'http://localhost:8080/graphql';
-let moduleName = process.argv[3] || 'StarWars';
-let graphqlFile = process.argv[4] || './src/queries.graphql';
+import {
+  decoderForQuery
+} from './query-to-decoder';
+
+let graphqlFile = process.argv[2];
+if (!graphqlFile) {
+  console.error('usage: query-to-elm graphql_file <endpoint_url>');
+  process.exit(1);
+}
+let uri = process.argv[3] || 'http://localhost:8080/graphql';
 
 let queries = fs.readFileSync(graphqlFile, 'utf8');
 let queryDocument = parse(queries);
+
+let basename = path.basename(graphqlFile);
+let extname =  path.extname(graphqlFile);
+let filename = basename.substr(0, basename.length - extname.length);
+let moduleName = 'GraphQL.' + filename;
+
+let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
 
 let url = uri + '?query=' + introspectionQuery.replace(/\n/g, '');
 request(url, function (err, res, body) {
@@ -79,18 +76,27 @@ request(url, function (err, res, body) {
   } else if (res.statusCode == 200) {
     let result = JSON.parse(body);
     let schema = buildClientSchema(result.data);
-    let decls = translateQuery(queryDocument, schema);
-    console.log(moduleToElm(moduleName, ['GraphQL'], decls));
+    let [decls, expose] = translateQuery(uri, queryDocument, schema);
+    let elm = moduleToElm(moduleName, expose, [
+      'Task exposing (Task)',
+      'Json.Decode exposing (..)',
+      'Json.Encode exposing (encode, object)',
+      'Http',
+      'GraphQL exposing (apply)'
+    ], decls);
+    fs.writeFileSync(outPath, elm);
   } else {
     throw new Error('HTTP status ' + res.statusCode);
   }
 });
 
-function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
+function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Array<ElmDecl>, Array<string>] {
   let seenEnums: Array<GraphQLEnumType> = [];
+  let expose: Array<string> = [];
 
-  function walkQueryDocument(doc: Document, info: TypeInfo): Array<ElmDecl> {
-    let decls = [];
+  function walkQueryDocument(doc: Document, info: TypeInfo): [Array<ElmDecl>, Array<string>] {
+    let decls: Array<ElmDecl> = [];
+    decls.push({ name: 'url', parameters: [], returnType: 'String', body: { expr: `"${uri}"` } });
 
     for (let def of doc.definitions) {
       if (def.kind == 'OperationDefinition') {
@@ -102,13 +108,27 @@ function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
 
     for (let seenEnum of seenEnums) {
       decls.unshift(walkEnum(seenEnum));
+      decls.push(decoderForEnum(seenEnum));
+      expose.push(seenEnum.name);
     }
 
-    return decls;
+    return [decls, expose];
   }
 
   function walkEnum(enumType: GraphQLEnumType): ElmType {
     return { name: enumType.name, constructors: enumType.getValues().map(v => v.name) };
+  }
+
+  function decoderForEnum(enumType: GraphQLEnumType): ElmFunction {
+    // might need to be Maybe Episode, with None -> fail in the Decoder
+    return { name: enumType.name.toLowerCase(), parameters: [],
+             returnType: 'Decoder ' + enumType.name,
+             body: { expr: 'customDecoder string (\\s ->\n' +
+               '        case s of\n' + enumType.getValues().map(v =>
+               '            "' + v.name + '" -> Ok ' + v.name).join('\n') + '\n' +
+               '            _ -> Err "Unknown ' + enumType.name + '")'
+             }
+           }
   }
 
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): Array<ElmDecl> {
@@ -128,23 +148,63 @@ function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
       let fields = walkSelectionSet(def.selectionSet, info);
       decls.push({ name: resultType, fields });
       // VariableDefinition
-      let parameters: Array<ElmParameter> = [];
+      let parameters: Array<{name:string, type:string, schemaType:GraphQLType}> = [];
       for (let varDef of def.variableDefinitions) {
         let name = varDef.variable.name.value;
-        let type = inputTypeToString(typeFromAST(schema, varDef.type));
+        let schemaType = typeFromAST(schema, varDef.type);
+        let type = inputTypeToString(schemaType);
         // todo: default value
-        parameters.push({ name, type });
+        parameters.push({ name, type, schemaType });
       }
-      if (parameters.length > 0) {
-        let funcName = name[0].toLowerCase() + name.substr(1);
-        decls.push({ name: funcName, parameters,
-                     returnType: 'Task Http.Error ' + resultType, // todo: may not make HTTP req.
-                     body: 'GraphQL.query "queryFriends" [id]' });
-      }
+      let funcName = name[0].toLowerCase() + name.substr(1);
+      let query = print(def);
+      let decodeFuncName = resultType[0].toLowerCase() + resultType.substr(1);
+      expose.push(funcName);
+      expose.push(resultType);
+      decls.push({
+         name: funcName, parameters,
+         returnType: `Task Http.Error ${resultType}`,
+         body: {
+           expr: `let query = """${query.replace(/\s+/g, ' ')}""" in\n` +
+             `    let params =\n` +
+             `            object\n` +
+             `                [ ` +
+             parameters.map(p => `("${p.name}", ${encoderForType(p.schemaType)} ${p.name})`)
+                                  .join(`\n                , `) + '\n' +
+             `                ]\n` +
+             `    in\n` +
+             `    GraphQL.query url query "${name}" (encode 0 params) ${decodeFuncName}`
+         }
+       });
+      decls.push({
+         name: decodeFuncName, parameters: [],
+         returnType: 'Decoder ' + resultType,
+         body: decoderForQuery(def, info, schema, seenEnums) });
+
       info.leave(def);
       return decls;
     } else if (def.operation == 'mutation') {
       // todo: mutation
+    }
+  }
+
+  function encoderForType(type: GraphQLType): string {
+    if (type instanceof GraphQLObjectType) {
+      let fieldEncoders = [];
+      let fields = type.getFields();
+      for (let name in fields) {
+        let f = fields[name];
+        fieldEncoders.push(`("${f.name}", ${encoderForType(f.type)} ${f.name})`);
+      }
+      return '(object [' + fieldEncoders.join(`, `) + '])';
+    } else if (type instanceof GraphQLList) {
+      return 'list ' + encoderForType(type.ofType);
+    } else if (type instanceof GraphQLNonNull) {
+      return encoderForType(type.ofType);
+    } else if (type instanceof GraphQLScalarType) {
+      return 'Json.Encode.' + type.name.toLowerCase();
+    }  else {
+      throw new Error('not implemented: ' + (<any>type.constructor).name); // todo: what?
     }
   }
 
@@ -183,9 +243,10 @@ function translateQuery(doc: Document, schema: GraphQLSchema): Array<ElmDecl> {
     // todo: Directives
     // SelectionSet
     if (field.selectionSet) {
+      let isList = info.getType() instanceof GraphQLList;
       let fields = walkSelectionSet(field.selectionSet, info);
       info.leave(field);
-      return { name, fields };
+      return { name, fields, list: isList };
     } else {
       let type = leafTypeToString(info.getType());
       info.leave(field);

@@ -1,7 +1,8 @@
-/lib
-/node_modules
-/src/*.js
-/src/*.map
-/typings/*.js
-/typings/*.map
+/tool/lib
+/tool/node_modules
+/tool/src/*.js
+/tool/src/*.map
+/tool/typings/*.js
+/tool/typings/*.map
 /graphql.config.json
+/elm-stuff

@@ -13,6 +13,12 @@
 declare module "graphql/language" {
   export function parse(source:string, options?): Document;
 
+  /**
+   * Converts an AST into a string, using one set of reasonable
+   * formatting rules.
+   */
+  export function print(ast: Node): string;
+
   //import type { Source } from './source';
 
   export class Source {
