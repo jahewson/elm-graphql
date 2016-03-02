@@ -31,3 +31,7 @@ This builds the code generator, but you'll need to check out my demo project to 
 ## Demo
 
 Check out my [elm-graphql-demo](https://github.com/jahewson/elm-graphql-demo) which provides a sample application and includes full build instructions.
+
+## How it works
+
+See the wiki page, [how elm-graphql works](https://github.com/jahewson/elm-graphql/wiki/How-elm-graphql-works) for more details.
