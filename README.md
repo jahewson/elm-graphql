@@ -1,11 +1,11 @@
-### ⚠ UNDER DEVELOPMENT ⚠
+⚠ This is a work in progress!
 
 ---
 
 # elm-graphql
 
 `elm-graphql` aims to generate Elm code for making GraphQL queries in a type-safe manner.
-It's being developed at the bi-weekly [Elm Hackathon](http://www.meetup.com/Elm-user-group-SF/).
+It's being developed at the bimonthly [Elm Hackathon](http://www.meetup.com/Elm-user-group-SF/).
 Contributions are welcome.
 
 This prototype consists of a code generator which takes GraphQL schema and named queries in a
@@ -34,65 +34,10 @@ This is a work in progress, still to do:
     npm install .
     npm run build
     
-## Run
+## Demo
 
 First, you'll need a GraphQL server running on local host.
 Clone my [graphql-starwars](https://github.com/jahewson/graphql-starwars) repo to
 get up and running quickly.
 
-Now you can convert the `queries.graphql` file to Elm, using the live starwars schema:
-
-    node lib/query-to-elm.js
-
-You can also provide your own arguments:
-
-    node lib/query-to-elm.js [endpointUri] [elmModuleName] [graphqlFile]
-
-## Example
-
-Here's a GraphQL query which uses the the [starwars schema](https://github.com/jahewson/graphql-starwars/blob/master/src/thirdparty/starWarsSchema.js):
-
-```graphql
-query queryFriends($id: String!) {
-    human(id: $id) {
-        name
-        appearsIn
-        friends {
-            name
-        }
-    }
-}
-```
-
-And here's the Elm type declarations generated for the query:
-
-```elm
-module StarWars (..) where
-
-type Episode
-    = NEWHOPE
-    | EMPIRE
-    | JEDI
-
-
-type alias QueryFriendsResult =
-    { human :
-        { name : Maybe String
-        , appearsIn : List Episode
-        , friends :
-            { name : Maybe String
-            }
-        }
-    }
-```
-
-We also generate a function to execute the query:
-
-```elm
-queryFriends : String -> Task Http.Error QueryFriendsResult
-queryFriends id =
-    GraphQL.query "queryFriends" [id]
-```
-
-Note that this code doesn't run yet as I'm still working on
-implementing the GraphQL.query function.
+Next, you'll want to clone my [elm-graphql-demo](https://github.com/jahewson/elm-graphql-demo) which provides a sample application and includes elm-graphql as a submodule (prior to publication).
