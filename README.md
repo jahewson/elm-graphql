@@ -22,8 +22,11 @@ schema.
 
 ## Build
 
+    cd tool
     npm install .
     npm run build
+
+This builds the code generator, but you'll need to check out my demo project to actually use it, see below.
     
 ## Demo
 
