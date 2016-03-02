@@ -20,15 +20,6 @@ to do this anyway.
 We use Facebook's [graphql-js](https://github.com/graphql/graphql-js) to parse a GraphQL
 schema.
 
-This is a work in progress, still to do:
-
-- [ ] Fragments (these could become type aliases?)
-- [ ] ID types (i.e. references)
-- [ ] Mutation
-- [ ] Directives
-- [ ] Default values (for parameters - use a Maybe?)
-- [ ] Aliases
-
 ## Build
 
     npm install .
