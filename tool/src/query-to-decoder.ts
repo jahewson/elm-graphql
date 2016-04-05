@@ -107,7 +107,7 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
     for (let sel of selSet.selections) {
       if (sel.kind == 'Field') {
         let field = <Field>sel;
-        if (field.alias != null) {
+        if (field.alias !== null) {
           fields.push(field.alias.value);
         } else {
           fields.push(field.name.value);
