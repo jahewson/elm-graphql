@@ -235,9 +235,12 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 
   function walkField(field: Field, info: TypeInfo): ElmField {
     info.enter(field);
-    // todo: Alias
     // Name
     let name = field.name.value;
+    // Alias
+    if (field.alias) {
+      name = field.alias.value;
+    }
     // Arguments (opt)
     let args = field.arguments; // e.g. id: "1000"
     // todo: Directives

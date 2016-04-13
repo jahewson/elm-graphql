@@ -107,7 +107,11 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
     for (let sel of selSet.selections) {
       if (sel.kind == 'Field') {
         let field = <Field>sel;
-        fields.push(field.name.value);
+        let name = field.name.value;
+        if (field.alias) {
+          name = field.alias.value;
+        }
+        fields.push(name);
       } else if (sel.kind == 'FragmentSpread') {
         // todo: FragmentSpread
         throw new Error('not implemented');
@@ -122,9 +126,12 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
 
   function walkField(field: Field, info: TypeInfo): ElmExpr {
     info.enter(field);
-    // todo: Alias
     // Name
     let name = field.name.value;
+    // Alias
+    if (field.alias) {
+      name = field.alias.value;
+    }
     // Arguments (opt)
     let args = field.arguments; // e.g. id: "1000"
     // todo: Directives
