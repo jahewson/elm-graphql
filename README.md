@@ -35,3 +35,7 @@ Check out my [elm-graphql-demo](https://github.com/jahewson/elm-graphql-demo) wh
 ## How it works
 
 See the wiki page, [how elm-graphql works](https://github.com/jahewson/elm-graphql/wiki/How-elm-graphql-works) for more details.
+
+## Projects using elm-graphql
+
+- [elm-hipster-stack](https://github.com/carleryd/elm-hipster-stack): Elm, Phoenix, GraphQL and RethinkDB
