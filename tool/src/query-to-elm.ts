@@ -16,6 +16,7 @@ import * as request from 'request';
 import {
   OperationDefinition,
   FragmentDefinition,
+  FragmentSpread,
   SelectionSet,
   Field,
   Document,
@@ -91,8 +92,10 @@ request(url, function (err, res, body) {
 });
 
 function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Array<ElmDecl>, Array<string>] {
-  let seenEnums: Array<GraphQLEnumType> = [];
+  let seenEnums: { [name: string]: GraphQLEnumType } = {};
   let expose: Array<string> = [];
+  let fragmentDefinitionMap: { [name: string]: FragmentDefinition } = {};
+  let seenFragments: { [name: string]: FragmentDefinition } = {};
 
   function walkQueryDocument(doc: Document, info: TypeInfo): [Array<ElmDecl>, Array<string>] {
     let decls: Array<ElmDecl> = [];
@@ -102,11 +105,12 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       if (def.kind == 'OperationDefinition') {
         decls.push(...walkOperationDefinition(<OperationDefinition>def, info));
       } else if (def.kind == 'FragmentDefinition') {
-        decls.push(walkFragmentDefinition(<FragmentDefinition>def, info));
+        decls.push(...walkFragmentDefinition(<FragmentDefinition>def, info));
       }
     }
 
-    for (let seenEnum of seenEnums) {
+    for (let name in seenEnums) {
+      let seenEnum = seenEnums[name];
       decls.unshift(walkEnum(seenEnum));
       decls.push(decoderForEnum(seenEnum));
       expose.push(seenEnum.name);
@@ -133,6 +137,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): Array<ElmDecl> {
     info.enter(def);
+    seenFragments = {};
     if (def.operation == 'query') {
       let decls: Array<ElmDecl> = [];
       // Name
@@ -157,7 +162,12 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
         parameters.push({ name, type, schemaType });
       }
       let funcName = name[0].toLowerCase() + name.substr(1);
-      let query = print(def);
+      // include all fragment dependencies in the query
+      let query = '';
+      for (let name in seenFragments) {
+        query += print(seenFragments[name]) + ' ';
+      }
+      query += print(def);
       let decodeFuncName = resultType[0].toLowerCase() + resultType.substr(1);
       expose.push(funcName);
       expose.push(resultType);
@@ -179,7 +189,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       decls.push({
          name: decodeFuncName, parameters: [],
          returnType: 'Decoder ' + resultType,
-         body: decoderForQuery(def, info, schema, seenEnums) });
+         body: decoderForQuery(def, info, schema, seenEnums, fragmentDefinitionMap) });
 
       info.leave(def);
       return decls;
@@ -208,27 +218,50 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     }
   }
 
-  function walkFragmentDefinition(def: FragmentDefinition, info: TypeInfo) {
-    console.log('todo: walkFragmentDefinition', def);
-    // todo: FragmentDefinition
-    return null;
+  function walkFragmentDefinition(def: FragmentDefinition, info: TypeInfo): Array<ElmDecl> {
+    info.enter(def);
+
+    let name = def.name.value;
+    fragmentDefinitionMap[name] = def;
+
+    let decls: Array<ElmDecl> = [];
+    let resultType = name[0].toUpperCase() + name.substr(1) + 'Result';
+
+    // todo: Directives
+
+    // SelectionSet
+    let fields = walkSelectionSet(def.selectionSet, info);
+    decls.push({ name: resultType, fields });
+
+    info.leave(def);
+    return decls;
   }
 
   function walkSelectionSet(selSet: SelectionSet, info: TypeInfo): Array<ElmField> {
     info.enter(selSet);
     let fields = [];
+    let spreads = [];
+
     for (let sel of selSet.selections) {
       if (sel.kind == 'Field') {
         let field = <Field>sel;
         fields.push(walkField(field, info));
       } else if (sel.kind == 'FragmentSpread') {
-        // todo: FragmentSpread
-        throw new Error('not implemented');
+        spreads.push((<FragmentSpread>sel).name.value);
       } else if (sel.kind == 'InlineFragment') {
         // todo: InlineFragment
-        throw new Error('not implemented');
+        throw new Error('not implemented: InlineFragment');
       }
     }
+
+    // expand out all fragment spreads
+    for (let spreadName of spreads) {
+      let def = fragmentDefinitionMap[spreadName];
+      seenFragments[spreadName] = def;
+      let spreadFields = walkSelectionSet(def.selectionSet, info);
+      fields = [...fields, ...spreadFields];
+    }
+
     info.leave(selSet);
     return fields;
   }
@@ -256,8 +289,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       return { name, type };
     }
   }
-
-  // fixme: return an AST instead
+  
   function leafTypeToString(type: GraphQLType): string {
     let prefix = '';
 
@@ -279,7 +311,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     if (type instanceof GraphQLScalarType) {
       return prefix + type.name; // todo: ID type
     } else if (type instanceof GraphQLEnumType) {
-      seenEnums.push(type);
+      seenEnums[type.name] = type;
       return prefix + type.name;
     } else {
       throw new Error('not a leaf type: ' + (<any>type).name);
@@ -287,7 +319,6 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
   }
 
   // input types are defined in the query, not the schema
-  // fixme: return an AST instead
   function inputTypeToString(type: GraphQLType): string {
     let prefix = '';
 
@@ -303,7 +334,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     }
 
     if (type instanceof GraphQLEnumType) {
-      seenEnums.push(type);
+      seenEnums[type.name] = type;
       return prefix + type.name;
     } else if (type instanceof GraphQLScalarType) {
       return prefix + type.name;

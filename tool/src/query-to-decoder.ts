@@ -10,6 +10,7 @@
 import {
   OperationDefinition,
   FragmentDefinition,
+  FragmentSpread,
   SelectionSet,
   Field,
   Document,
@@ -42,7 +43,8 @@ import {
 } from 'graphql/utilities';
 
 export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
-                                schema: GraphQLSchema, seenEnums: Array<GraphQLEnumType>): ElmExpr {
+                                schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
+                                fragmentDefinitionMap: { [name: string]: FragmentDefinition }): ElmExpr {
 
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): ElmExpr {
     info.enter(def);
@@ -76,12 +78,6 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
     }
   }
 
-  function walkFragmentDefinition(def: FragmentDefinition, info: TypeInfo) {
-    console.log('todo: walkFragmentDefinition', def);
-    // todo: FragmentDefinition
-    return null;
-  }
-
   function walkSelectionSet(selSet: SelectionSet, info: TypeInfo): ElmExpr {
     info.enter(selSet);
     let fields = [];
@@ -90,11 +86,13 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
         let field = <Field>sel;
         fields.push(walkField(field, info));
       } else if (sel.kind == 'FragmentSpread') {
-        // todo: FragmentSpread
-        throw new Error('not implemented');
+        // expand out all fragment spreads
+        let spreadName = (<FragmentSpread>sel).name.value;
+        let def = fragmentDefinitionMap[spreadName];
+        fields.push(walkSelectionSet(def.selectionSet, info));
       } else if (sel.kind == 'InlineFragment') {
         // todo: InlineFragment
-        throw new Error('not implemented');
+        throw new Error('not implemented: InlineFragment');
       }
     }
     info.leave(selSet);
@@ -113,11 +111,13 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
         }
         fields.push(name);
       } else if (sel.kind == 'FragmentSpread') {
-        // todo: FragmentSpread
-        throw new Error('not implemented');
+        // expand out all fragment spreads
+        let spreadName = (<FragmentSpread>sel).name.value;
+        let def = fragmentDefinitionMap[spreadName];
+        fields = [...fields, ...getSelectionSetFields(def.selectionSet, info)];
       } else if (sel.kind == 'InlineFragment') {
         // todo: InlineFragment
-        throw new Error('not implemented');
+        throw new Error('not implemented: InlineFragment');
       }
     }
     info.leave(selSet);
@@ -169,7 +169,6 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
     }
   }
 
-  // fixme: return an AST instead
   function leafTypeToString(type: GraphQLType): string {
     let prefix = '';
 
@@ -198,7 +197,6 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
   }
 
   // input types are defined in the query, not the schema
-  // fixme: return an AST instead
   function inputTypeToString(type: GraphQLType): string {
     let prefix = '';
 
