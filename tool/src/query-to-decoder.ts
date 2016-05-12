@@ -188,7 +188,11 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
 
     // leaf types only
     if (type instanceof GraphQLScalarType) {
-      return prefix + type.name.toLowerCase(); // todo: ID type
+      if (type.name == 'ID') {
+        return prefix + 'string';
+      } else {
+        return prefix + type.name.toLowerCase();
+      }
     } else if (type instanceof GraphQLEnumType) {
       return prefix + type.name.toLowerCase();
     } else {

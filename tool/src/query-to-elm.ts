@@ -83,7 +83,7 @@ request(url, function (err, res, body) {
       'Json.Decode exposing (..)',
       'Json.Encode exposing (encode, object)',
       'Http',
-      'GraphQL exposing (apply)'
+      'GraphQL exposing (apply, ID)'
     ], decls);
     fs.writeFileSync(outPath, elm);
   } else {
@@ -309,7 +309,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 
     // leaf types only
     if (type instanceof GraphQLScalarType) {
-      return prefix + type.name; // todo: ID type
+      return prefix + type.name;
     } else if (type instanceof GraphQLEnumType) {
       seenEnums[type.name] = type;
       return prefix + type.name;
