@@ -137,8 +137,11 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): Array<ElmDecl> {
     info.enter(def);
+    if (!info.getType()) {
+      throw new Error(`GraphQL schema does not define ${def.operation} '${def.name.value}'`);
+    }
     seenFragments = {};
-    if (def.operation == 'query') {
+    if (def.operation == 'query' || def.operation == 'mutation') {
       let decls: Array<ElmDecl> = [];
       // Name
       let name: string;
@@ -193,8 +196,6 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 
       info.leave(def);
       return decls;
-    } else if (def.operation == 'mutation') {
-      // todo: mutation
     }
   }
 
@@ -284,6 +285,9 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       info.leave(field);
       return { name, fields, list: isList };
     } else {
+      if (!info.getType()) {
+        throw new Error('Unknown GraphQL field: ' + field.name.value);
+      }
       let type = leafTypeToString(info.getType());
       info.leave(field);
       return { name, type };

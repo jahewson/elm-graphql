@@ -48,7 +48,7 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
 
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): ElmExpr {
     info.enter(def);
-    if (def.operation == 'query') {
+    if (def.operation == 'query' || def.operation == 'mutation') {
       let decls: Array<ElmDecl> = [];
       // Name
       let name: string;
@@ -73,8 +73,6 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
       info.leave(def);
       //return decls;
       return { expr: 'map ' + resultType + ' ' + expr.expr };
-    } else if (def.operation == 'mutation') {
-      // todo: mutation
     }
   }
 
