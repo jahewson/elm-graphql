@@ -156,13 +156,12 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       let fields = walkSelectionSet(def.selectionSet, info);
       decls.push({ name: resultType, fields });
       // VariableDefinition
-      let parameters: Array<{name:string, type:string, schemaType:GraphQLType}> = [];
+      let parameters: Array<{name:string, type:string, schemaType:GraphQLType, hasDefault:boolean}> = [];
       for (let varDef of def.variableDefinitions) {
         let name = varDef.variable.name.value;
         let schemaType = typeFromAST(schema, varDef.type);
         let type = inputTypeToString(schemaType);
-        // todo: default value
-        parameters.push({ name, type, schemaType });
+        parameters.push({ name, type, schemaType, hasDefault: varDef.defaultValue != null });
       }
       let funcName = name[0].toLowerCase() + name.substr(1);
       // include all fragment dependencies in the query
@@ -182,8 +181,18 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
              `    let params =\n` +
              `            object\n` +
              `                [ ` +
-             parameters.map(p => `("${p.name}", ${encoderForType(p.schemaType)} ${p.name})`)
-                                  .join(`\n                , `) + '\n' +
+             parameters.map(p => {
+               let encoder: string;
+               if (p.hasDefault) {
+                 encoder =`case ${p.name} of` +
+                     `\n                            Just val -> ${encoderForType(p.schemaType)} val` +
+                     `\n                            Nothing -> Json.Encode.null`
+               } else {
+                 encoder = encoderForType(p.schemaType) + ' ' + p.name;
+               }
+                return `("${p.name}", ${encoder})`;
+             })
+             .join(`\n                , `) + '\n' +
              `                ]\n` +
              `    in\n` +
              `    GraphQL.query url query "${name}" (encode 0 params) ${decodeFuncName}`
@@ -275,7 +284,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     if (field.alias) {
       name = field.alias.value;
     }
-    // Arguments (opt)
+    // todo: Arguments, such as `id: $someId`, where $someId is a variable
     let args = field.arguments; // e.g. id: "1000"
     // todo: Directives
     // SelectionSet
