@@ -81,7 +81,7 @@ request(url, function (err, res, body) {
     let elm = moduleToElm(moduleName, expose, [
       'Task exposing (Task)',
       'Json.Decode exposing (..)',
-      'Json.Encode exposing (encode, object)',
+      'Json.Encode exposing (encode)',
       'Http',
       'GraphQL exposing (apply, ID)'
     ], decls);
@@ -99,7 +99,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 
   function walkQueryDocument(doc: Document, info: TypeInfo): [Array<ElmDecl>, Array<string>] {
     let decls: Array<ElmDecl> = [];
-    decls.push({ name: 'url', parameters: [], returnType: 'String', body: { expr: `"${uri}"` } });
+    decls.push({ name: 'endpointUrl', parameters: [], returnType: 'String', body: { expr: `"${uri}"` } });
 
     for (let def of doc.definitions) {
       if (def.kind == 'OperationDefinition') {
@@ -177,9 +177,10 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
          name: funcName, parameters,
          returnType: `Task Http.Error ${resultType}`,
          body: {
-           expr: `let query = """${query.replace(/\s+/g, ' ')}""" in\n` +
-             `    let params =\n` +
-             `            object\n` +
+           // we use awkward variable names to avoid naming collisions with query parameters
+           expr: `let graphQLQuery = """${query.replace(/\s+/g, ' ')}""" in\n` +
+             `    let graphQLParams =\n` +
+             `            Json.Encode.object\n` +
              `                [ ` +
              parameters.map(p => {
                let encoder: string;
@@ -195,7 +196,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
              .join(`\n                , `) + '\n' +
              `                ]\n` +
              `    in\n` +
-             `    GraphQL.query url query "${name}" (encode 0 params) ${decodeFuncName}`
+             `    GraphQL.query endpointUrl graphQLQuery "${name}" (encode 0 graphQLParams) ${decodeFuncName}`
          }
        });
       decls.push({
