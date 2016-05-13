@@ -197,7 +197,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
                } else {
                  encoder = encoderForType(p.schemaType) + ' ' + p.name;
                }
-                return `("params.${p.name}", ${encoder})`;
+                return `("${p.name}", params.${encoder})`;
              })
              .join(`\n                , `) + '\n' +
              `                ]\n` +
