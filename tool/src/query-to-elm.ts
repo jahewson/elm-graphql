@@ -173,8 +173,14 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       let decodeFuncName = resultType[0].toLowerCase() + resultType.substr(1);
       expose.push(funcName);
       expose.push(resultType);
+
+      let parametersRecord = {
+        name: 'params',
+        type: '{ ' + parameters.map(p => p.name + ': ' +  inputTypeToString(p.schemaType)).join(', ') + ' }'
+      };
+
       decls.push({
-         name: funcName, parameters,
+         name: funcName, parameters: [parametersRecord],
          returnType: `Task Http.Error ${resultType}`,
          body: {
            // we use awkward variable names to avoid naming collisions with query parameters
@@ -185,13 +191,13 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
              parameters.map(p => {
                let encoder: string;
                if (p.hasDefault) {
-                 encoder =`case ${p.name} of` +
+                 encoder =`case params.${p.name} of` +
                      `\n                            Just val -> ${encoderForType(p.schemaType)} val` +
                      `\n                            Nothing -> Json.Encode.null`
                } else {
                  encoder = encoderForType(p.schemaType) + ' ' + p.name;
                }
-                return `("${p.name}", ${encoder})`;
+                return `("params.${p.name}", ${encoder})`;
              })
              .join(`\n                , `) + '\n' +
              `                ]\n` +
