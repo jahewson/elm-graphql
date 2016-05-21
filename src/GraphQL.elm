@@ -1,4 +1,4 @@
-module GraphQL (..) where
+module GraphQL exposing (..)
 {-| Todo: Write documentation for this module.
 
 # Todo: Exports
