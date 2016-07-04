@@ -105,7 +105,7 @@ export function typeAliasDeclToString(type: ElmTypeAliasDecl): string {
 }
 
 export function funtionToString(func: ElmFunctionDecl): string {
-  let paramTypes = func.parameters.map(p => typeToString(p.type, 0)).join(' -> ');
+  let paramTypes = func.parameters.map(p => typeToString(p.type, 1)).join(' -> ');
   let paramNames = func.parameters.map(p => p.name).join(' ');
   let arrow = paramTypes.length > 0 ? ' -> ' : '';
   let space = paramTypes.length > 0 ? ' ' : '';
