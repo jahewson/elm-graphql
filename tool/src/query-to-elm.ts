@@ -267,9 +267,11 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       return 'list ' + encoderForType(type.ofType);
     } else if (type instanceof GraphQLNonNull) {
       return encoderForType(type.ofType);
+    } else if (type instanceof GraphQLScalarType && type.name == 'Boolean') {
+      return 'Json.Encode.bool';
     } else if (type instanceof GraphQLScalarType) {
       return 'Json.Encode.' + type.name.toLowerCase();
-    }  else {
+    } else {
       throw new Error('not implemented: ' + type.constructor.name); // todo: what?
     }
   }

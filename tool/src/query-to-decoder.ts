@@ -268,6 +268,8 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
 
     if (type instanceof GraphQLEnumType) {
       return prefix + type.name;
+    } else if (type instanceof GraphQLScalarType && type.name == 'Boolean') {
+      return prefix + 'Bool';
     } else if (type instanceof GraphQLScalarType) {
       return prefix + type.name;
     } else {
