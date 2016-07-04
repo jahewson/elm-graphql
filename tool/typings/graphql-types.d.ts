@@ -92,6 +92,7 @@ declare module "graphql/type" {
 
   export class GraphQLInterfaceType extends GraphQLType {
     name: string;
+    getFields(): GraphQLFieldDefinitionMap;
     constructor(config: any)
   }
 
@@ -117,6 +118,7 @@ declare module "graphql/type" {
 
   export class GraphQLInputObjectType extends GraphQLType {
     name: string;
+    getFields(): GraphQLFieldDefinitionMap;
     constructor(config: any)
   }
 

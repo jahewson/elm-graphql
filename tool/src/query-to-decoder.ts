@@ -22,7 +22,9 @@ import {
   ElmDecl,
   ElmTypeDecl,
   ElmParameterDecl,
-  moduleToElm, ElmExpr
+  ElmExpr,
+  moduleToString,
+  typeToString
 } from './elm-ast';
 
 import {
@@ -43,7 +45,8 @@ import {
 } from 'graphql/utilities';
 
 import {
-  elmSafeName
+  elmSafeName,
+  typeToElm
 } from './query-to-elm';
 
 export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
@@ -221,60 +224,14 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
   }
 
   function leafTypeToString(type: GraphQLType): string {
-    let prefix = '';
-
-    // lists or non-null of leaf types only
-    let t: GraphQLType;
-    if (type instanceof GraphQLList) {
-      t = type.ofType;
-      prefix = 'list ';
-    } else if (type instanceof GraphQLNonNull) {
-      t = type.ofType;
-    } else {
-      // implicitly nullable
-      //prefix = 'Maybe ';
-      t = type;
-    }
-    type = t;
-
-    // leaf types only
-    if (type instanceof GraphQLScalarType) {
-      if (type.name == 'ID') {
-        return prefix + 'string';
-      } else {
-        return prefix + type.name.toLowerCase();
-      }
-    } else if (type instanceof GraphQLEnumType) {
-      return prefix + type.name.toLowerCase();
-    } else {
-      throw new Error('not a leaf type: ' + (<any>type).name);
-    }
+    let elmType = typeToElm(type);
+    return typeToString(elmType, 0);
   }
 
   // input types are defined in the query, not the schema
   function inputTypeToString(type: GraphQLType): string {
-    let prefix = '';
-
-    // lists or non-null of leaf types only
-    if (type instanceof GraphQLList) {
-      type = (<any>type).ofType;
-      prefix = 'List ';
-    } else if (type instanceof GraphQLNonNull) {
-      type =  (<any>type).ofType;
-    } else {
-      // implicitly nullable
-      prefix = 'Maybe ';
-    }
-
-    if (type instanceof GraphQLEnumType) {
-      return prefix + type.name;
-    } else if (type instanceof GraphQLScalarType && type.name == 'Boolean') {
-      return prefix + 'Bool';
-    } else if (type instanceof GraphQLScalarType) {
-      return prefix + type.name;
-    } else {
-      throw new Error('not a leaf type: ' + (<any>type.constructor).name);
-    }
+    let elmType = typeToElm(type);
+    return typeToString(elmType, 0);
   }
 
   return walkDefinition(def, info);

@@ -5,12 +5,14 @@
  * GraphQL utilities.
  */
 declare module "graphql/utilities" {
-  import { GraphQLOutputType, GraphQLSchema, GraphQLType } from 'graphql/type';
+  import { GraphQLOutputType, GraphQLSchema, GraphQLType, GraphQLInputType } from 'graphql/type';
   import { Type, Node } from 'graphql/language';
 
   export class TypeInfo {
     constructor(schema: GraphQLSchema);
     getType(): GraphQLOutputType;
+    getInputType(): GraphQLInputType;
+
     enter(node: Node): void;
     leave(node: Node): void;
   }

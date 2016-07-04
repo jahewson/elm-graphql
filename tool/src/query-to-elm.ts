@@ -32,7 +32,7 @@ import {
   ElmDecl,
   ElmTypeDecl,
   ElmParameterDecl,
-  moduleToElm,
+  moduleToString,
   ElmExpr,
   ElmFunctionDecl,
   ElmType,
@@ -49,7 +49,9 @@ import {
   GraphQLScalarType,
   GraphQLEnumType,
   GraphQLType,
-  GraphQLObjectType
+  GraphQLObjectType,
+  GraphQLInterfaceType,
+  GraphQLInputObjectType
 } from 'graphql/type';
 
 import {
@@ -63,6 +65,8 @@ import {
   decoderForQuery,
   decoderForFragment
 } from './query-to-decoder';
+
+type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
 
 let graphqlFile = process.argv[2];
 if (!graphqlFile) {
@@ -89,7 +93,7 @@ request(url, function (err, res, body) {
     let result = JSON.parse(body);
     let schema = buildClientSchema(result.data);
     let [decls, expose] = translateQuery(uri, queryDocument, schema);
-    let elm = moduleToElm(moduleName, expose, [
+    let elm = moduleToString(moduleName, expose, [
       'Task exposing (Task)',
       'Json.Decode exposing (..)',
       'Json.Encode exposing (encode)',
@@ -187,7 +191,8 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
         for (let varDef of def.variableDefinitions) {
           let name = varDef.variable.name.value;
           let schemaType = typeFromAST(schema, varDef.type);
-          let type = walkInputType(schemaType);
+          let type = typeToElm(schemaType);
+          collectEnums(type, seenEnums);
           parameters.push({ name, type, schemaType, hasDefault: varDef.defaultValue != null });
         }
       }
@@ -218,10 +223,10 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
                let encoder: string;
                if (p.hasDefault) {
                  encoder =`case params.${p.name} of` +
-                     `\n                            Just val -> ${encoderForType(p.schemaType)} val` +
+                     `\n                            Just val -> ${encoderForInputType(p.schemaType)} val` +
                      `\n                            Nothing -> Json.Encode.null`
                } else {
-                 encoder = encoderForType(p.schemaType) + ' params.' + p.name;
+                 encoder = encoderForInputType(p.schemaType) + ' params.' + p.name;
                }
                 return `("${p.name}", ${encoder})`;
              })
@@ -254,19 +259,19 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     }
   }
 
-  function encoderForType(type: GraphQLType): string {
-    if (type instanceof GraphQLObjectType) {
+  function encoderForInputType(type: GraphQLType): string {
+    if (type instanceof GraphQLInputObjectType) {
       let fieldEncoders: Array<string> = [];
       let fields = type.getFields();
       for (let name in fields) {
         let f = fields[name];
-        fieldEncoders.push(`("${f.name}", ${encoderForType(f.type)} ${f.name})`);
+        fieldEncoders.push(`("${f.name}", ${encoderForInputType(f.type)} ${f.name})`);
       }
       return '(object [' + fieldEncoders.join(`, `) + '])';
     } else if (type instanceof GraphQLList) {
-      return 'list ' + encoderForType(type.ofType);
+      return 'list ' + encoderForInputType(type.ofType);
     } else if (type instanceof GraphQLNonNull) {
-      return encoderForType(type.ofType);
+      return encoderForInputType(type.ofType);
     } else if (type instanceof GraphQLScalarType && type.name == 'Boolean') {
       return 'Json.Encode.bool';
     } else if (type instanceof GraphQLScalarType) {
@@ -340,7 +345,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       let [fields, spreads] = walkSelectionSet(field.selectionSet, info);
       // record
       let type: ElmType = new ElmTypeRecord(fields);
-      // spreads - NEW!!!!!!
+      // spreads
       for (let spreadName of spreads) {
         let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
         type = new ElmTypeApp(typeName, type);
@@ -355,55 +360,65 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       if (!info.getType()) {
         throw new Error('Unknown GraphQL field: ' + field.name.value);
       }
-      let type = walkLeafType(info.getType());
+      let type = typeToElm(info.getType());
+      collectEnums(type, seenEnums);
       info.leave(field);
       return new ElmFieldDecl(name, type)
     }
   }
-  
-  function walkLeafType(type: GraphQLType): ElmType {
-    // lists or non-null of leaf types only
-    let isList = false;
-    let isMaybe = false;
-    let t: GraphQLType;
-    if (type instanceof GraphQLList) {
-      t = type.ofType;
-      isList = true;
-    } else if (type instanceof GraphQLNonNull) {
-      t = type.ofType;
-    } else {
-      // implicitly nullable
-      t = type;
-      isMaybe = true; 
-    }
-    type = t;
-
-    // leaf types only
-    let inner: ElmType;
-    if (type instanceof GraphQLScalarType) {
-      inner = new ElmTypeName(type.name);
-    } else if (type instanceof GraphQLEnumType) {
-      seenEnums[type.name] = type;
-      inner = new ElmTypeName(type.name[0].toUpperCase() + type.name.substr(1));
-    } else {
-      throw new Error('not a leaf type: ' + (<any>type).name);
-    }
-
-    if (isList) {
-      inner = new ElmTypeApp('List', inner);
-    } else if (isMaybe) {
-      inner = new ElmTypeApp('Maybe', inner);
-    }
-    return inner;
-  }
-
-  // input types are defined in the query, not the schema
-  function walkInputType(type: GraphQLType): ElmType {
-    // todo: need to handle non-leaf types
-    return walkLeafType(type);
-  }
-
   return walkQueryDocument(doc, new TypeInfo(schema));
+}
+
+export function typeToElm(type: GraphQLType, isNonNull?: boolean): ElmType {
+  let elmType: ElmType;
+  
+  if (type instanceof GraphQLScalarType && type.name == 'Boolean') {
+    elmType = new ElmTypeName('Bool');
+  } else if (type instanceof GraphQLScalarType) {
+    elmType = new ElmTypeName(type.name);
+  } else if (type instanceof GraphQLEnumType) {
+    //seenEnums[type.name] = type;
+    elmType = new ElmTypeName(type.name[0].toUpperCase() + type.name.substr(1));
+  } else if (type instanceof GraphQLList) {
+    elmType = new ElmTypeApp('List', typeToElm(type.ofType));
+  } else if (type instanceof GraphQLObjectType ||
+             type instanceof GraphQLInterfaceType ||
+             type instanceof GraphQLInputObjectType) {
+    let fields: Array<ElmFieldDecl> = [];
+    let fieldMap = type.getFields();
+    for (let fieldName in fieldMap) {
+      let field = fieldMap[fieldName];
+      fields.push(new ElmFieldDecl(elmSafeName(fieldName), typeToElm(field.type)))
+    }
+    elmType = new ElmTypeRecord(fields);
+  } else if (type instanceof GraphQLNonNull) {
+    elmType = typeToElm(type.ofType, true);
+  } else {
+    throw new Error('Unexpected: ' + type.constructor.name);
+  }
+
+  if (!isNonNull) {
+    elmType = new ElmTypeApp('Maybe', elmType);
+  }
+  return elmType;
+}
+
+function collectEnums(type: GraphQLType, seen: GraphQLEnumMap = {}): void {
+  if (type instanceof GraphQLEnumType) {
+    seen[type.name] = type;
+  } else if (type instanceof GraphQLList) {
+    collectEnums(type.ofType);
+  } else if (type instanceof GraphQLObjectType ||
+             type instanceof GraphQLInterfaceType ||
+             type instanceof GraphQLInputObjectType) {
+    let fieldMap = type.getFields();
+    for (let fieldName in fieldMap) {
+      let field = fieldMap[fieldName];
+      collectEnums(field.type)
+    }
+  } else if (type instanceof GraphQLNonNull) {
+    collectEnums(type.ofType);
+  }
 }
 
 export function elmSafeName(graphQlName: string): string {
