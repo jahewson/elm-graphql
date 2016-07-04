@@ -3,42 +3,67 @@
  * All rights reserved.
  */
 
-export type ElmDecl = ElmType | ElmTypeAlias | ElmFunction;
+// types
 
-export interface ElmType {
-  name: string;
-  constructors: Array<string>;
+export abstract class ElmType {}
+
+export class ElmTypeName extends ElmType {
+  constructor(public name: string) {
+    super();
+  }
 }
 
-export interface ElmTypeAlias {
-  name: string;
-  fields: Array<ElmField>;
+export class ElmTypeApp  extends ElmType {
+  constructor(public name: string, public arg: ElmType) {
+    super();
+  }
 }
 
-export type ElmField = ElmRecordField | ElmLeafField;
-
-export interface ElmRecordField {
-  name: string;
-  fields: Array<ElmField>;
-  list?: boolean;  // hack
+export class ElmTypeRecord  extends ElmType {
+  constructor(public fields: Array<ElmFieldDecl>) {
+    super();
+  }
 }
 
-export interface ElmLeafField {
-  name: string;
-  type: string;
+// decls
+
+export abstract class ElmDecl {}
+
+export class ElmTypeDecl extends ElmDecl {
+  constructor(public name: string,
+              public constructors: Array<string>) {
+    super();
+  }
 }
 
-export interface ElmFunction {
-  name: string;
-  parameters: Array<ElmParameter>;
-  returnType: string;
-  body: ElmExpr;
+export class ElmTypeAliasDecl extends ElmDecl {   // todo: shouldn't this be name -> type, where type = ElmTypeRecord
+  constructor(public name: string,
+              public fields: Array<ElmFieldDecl>,
+              public typeParams?: Array<string>) {
+    super();
+  }
 }
 
-export interface ElmParameter {
-  name: string;
-  type: string;
+export class ElmFunctionDecl extends ElmDecl {
+  constructor(public name: string,
+              public parameters: Array<ElmParameterDecl>,
+              public returnType: ElmType,
+              public body: ElmExpr) {
+    super();
+  }
 }
+
+export class ElmFieldDecl {
+  constructor(public name: string,
+              public type: ElmType) {}
+}
+
+export class ElmParameterDecl {
+  constructor(public name: string,
+              public type: ElmType) { }
+}
+
+// expressions
 
 export interface ElmExpr {
   expr: string; // todo: expression trees
@@ -53,53 +78,58 @@ export function moduleToElm(name: string, expose: Array<string>, imports: Array<
 }
 
 export function declToElm(decl: ElmDecl): string {
-  if ((<ElmType>decl).constructors) {
-    return typeToElm(<ElmType>decl);
-  } else if ((<ElmFunction>decl).returnType) {
-    return functionToElm(<ElmFunction>decl);
+  if (decl instanceof ElmTypeDecl) {
+    return typeDeclToElm(decl);
+  } else if (decl instanceof ElmFunctionDecl) {
+    return functionToElm(decl);
+  } else if (decl instanceof ElmTypeAliasDecl) {
+    return typeAliasDeclToElm(decl);
   } else {
-    return aliasToElm(<ElmTypeAlias>decl);
+    throw new Error('unexpected decl: ' + decl.constructor.name + ' ' + JSON.stringify(decl));
   }
 }
 
-export function typeToElm(type: ElmType): string {
+export function typeDeclToElm(type: ElmTypeDecl): string {
   return 'type ' + type.name + '\n' +
     '    = ' + type.constructors.join('\n    | ') + '\n';
 }
 
-export function aliasToElm(type: ElmTypeAlias): string {
-  return 'type alias ' + type.name + ' =\n' +
-    '    { ' + type.fields.map(f => fieldToElm(f, 1)).join('\n    , ') + '    }\n';
+export function typeAliasDeclToElm(type: ElmTypeAliasDecl): string {
+  if (type.fields.length == 0){
+    return 'type alias ' + type.name + ' = ' + type.name + '_ {}'; // hack
+  }
+  let typeParams = type.typeParams ? ' ' + type.typeParams.join(' ') : '';
+  let pipe = type.typeParams ? ' |' : '';
+  return 'type alias ' + type.name + typeParams + ' =\n' +
+    '    {' + typeParams + pipe + ' ' + type.fields.map(f => fieldToElm(f, 1)).join('\n    , ') + '    }\n';
 }
 
-export function functionToElm(func: ElmFunction): string {
-  let paramTypes = func.parameters.map(p => p.type).join(' -> ');
+export function functionToElm(func: ElmFunctionDecl): string {
+  let paramTypes = func.parameters.map(p => typeToElm(p.type, 0)).join(' -> ');
   let paramNames = func.parameters.map(p => p.name).join(' ');
   let arrow = paramTypes.length > 0 ? ' -> ' : '';
   let space = paramTypes.length > 0 ? ' ' : '';
-  return func.name + ' : ' + paramTypes + arrow + func.returnType + '\n' +
+  return func.name + ' : ' + paramTypes + arrow + typeToElm(func.returnType, 0) + '\n' +
          func.name + space + paramNames + ' =\n    ' + exprToElm(func.body, 0) + '\n';
 }
 
-function fieldToElm(field: ElmField, level: number): string {
-  if ((<ElmLeafField>field).type) {
-    return leafToElm(<ElmLeafField>field);
+function fieldToElm(field: ElmFieldDecl, level: number): string {
+  return field.name + ' : ' + typeToElm(field.type, level) + '\n';
+}
+
+function typeToElm(ty: ElmType, level: number): string {
+  if (ty instanceof ElmTypeName) {
+    return ty.name;
+  } else if (ty instanceof ElmTypeApp) {
+    return '(' + ty.name + ' ' + typeToElm(ty.arg, level) + ')';  // todo: omit unneccesary parens
+  } else if (ty instanceof ElmTypeRecord) {
+    let indent = makeIndent(level);
+    return `${indent}{ ` +
+            ty.fields.map(f => fieldToElm(f, level)).join(`${indent}, `) +
+            `${indent}}`;
   } else {
-    return recordToElm(<ElmRecordField>field, level + 1);
+    throw new Error('unexpected type: ' + ty.constructor.name + ' ' + JSON.stringify(ty));
   }
-}
-
-function recordToElm(record: ElmRecordField, level: number): string {
-  let indent = makeIndent(level);
-  let list = record.list ? 'List ' : '';
-  let type = `${indent}${list}{ ` +
-              record.fields.map(f => fieldToElm(f, level)).join(`${indent}, `) +
-              `${indent}}`;
-  return record.name + ' :\n' + type + '\n';
-}
-
-function leafToElm(field: ElmLeafField): string {
-  return field.name + ' : ' + field.type + '\n';
 }
 
 function makeIndent(level: number) {

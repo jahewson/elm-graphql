@@ -11,8 +11,8 @@ declare module "graphql/utilities" {
   export class TypeInfo {
     constructor(schema: GraphQLSchema);
     getType(): GraphQLOutputType;
-    enter(node: Node);
-    leave(node): Node;
+    enter(node: Node): void;
+    leave(node: Node): void;
   }
 
   export const introspectionQuery: string;

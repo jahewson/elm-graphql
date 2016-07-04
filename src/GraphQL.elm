@@ -31,7 +31,7 @@ queryResult decoder =
     -- todo: check for success/failure of the query
     oneOf
     [ at ["data"] decoder
-    , fail "expecting data"   -- todo: report failure reason from server
+    , fail "Expected 'data' field"   -- todo: report failure reason from server
     ]
 
 

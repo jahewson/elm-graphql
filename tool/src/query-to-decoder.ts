@@ -18,10 +18,10 @@ import {
 } from "graphql/language";
 
 import {
-  ElmField,
+  ElmFieldDecl,
   ElmDecl,
-  ElmType,
-  ElmParameter,
+  ElmTypeDecl,
+  ElmParameterDecl,
   moduleToElm, ElmExpr
 } from './elm-ast';
 
@@ -42,9 +42,37 @@ import {
   typeFromAST,
 } from 'graphql/utilities';
 
+import {
+  elmSafeName
+} from './query-to-elm';
+
 export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
                                 schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
-                                fragmentDefinitionMap: { [name: string]: FragmentDefinition }): ElmExpr {
+                                fragmentDefinitionMap: { [name: string]: FragmentDefinition },
+                                seenFragments: { [name: string]: FragmentDefinition }): ElmExpr {
+  return decoderFor(def, info, schema, seenEnums, fragmentDefinitionMap, seenFragments);
+}
+
+export function decoderForFragment(def: FragmentDefinition, info: TypeInfo,
+                                schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
+                                fragmentDefinitionMap: { [name: string]: FragmentDefinition },
+                                seenFragments: { [name: string]: FragmentDefinition }): ElmExpr {
+  return decoderFor(def, info, schema, seenEnums, fragmentDefinitionMap, seenFragments);
+}
+
+
+export function decoderFor(def: OperationDefinition | FragmentDefinition, info: TypeInfo,
+                           schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
+                           fragmentDefinitionMap: { [name: string]: FragmentDefinition },
+                           seenFragments: { [name: string]: FragmentDefinition }): ElmExpr {
+
+  function walkDefinition(def: OperationDefinition | FragmentDefinition, info: TypeInfo) {
+    if (def.kind == 'OperationDefinition') {
+      return walkOperationDefinition(<OperationDefinition>def, info);
+    } else if (def.kind == 'FragmentDefinition') {
+      return walkFragmentDefinition(<FragmentDefinition>def, info);
+    }
+  }
 
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): ElmExpr {
     info.enter(def);
@@ -63,22 +91,45 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
       let expr = walkSelectionSet(def.selectionSet, info);
       //decls.push({ name: resultType, fields });
       // VariableDefinition
-      let parameters: Array<ElmParameter> = [];
-      for (let varDef of def.variableDefinitions) {
-        let name = varDef.variable.name.value;
-        let type = inputTypeToString(typeFromAST(schema, varDef.type));
-        // todo: default value
-        parameters.push({ name, type });
+      let parameters: Array<ElmParameterDecl> = [];
+      if (def.variableDefinitions) {
+        for (let varDef of def.variableDefinitions) {
+          let name = varDef.variable.name.value;
+          let type = inputTypeToString(typeFromAST(schema, varDef.type));
+          // todo: default value
+          parameters.push({ name, type });
+        }
       }
       info.leave(def);
       //return decls;
+      
       return { expr: 'map ' + resultType + ' ' + expr.expr };
     }
   }
 
+  function walkFragmentDefinition(def: FragmentDefinition, info: TypeInfo): ElmExpr {
+    info.enter(def);
+
+    let name = def.name.value;
+
+    let decls: Array<ElmDecl> = [];
+    let resultType = name[0].toUpperCase() + name.substr(1) + 'Result';
+
+    // todo: Directives
+
+    // SelectionSet
+    let fields = walkSelectionSet(def.selectionSet, info);
+
+    let fieldNames = getSelectionSetFields(def.selectionSet, info);
+    let shape = `(\\${fieldNames.join(' ')} -> { ${fieldNames.map(f => f + ' = ' + f).join(', ')} })`;
+    
+    info.leave(def);
+    return { expr: 'map ' + shape + ' ' + fields.expr };
+  }
+
   function walkSelectionSet(selSet: SelectionSet, info: TypeInfo): ElmExpr {
     info.enter(selSet);
-    let fields = [];
+    let fields: Array<ElmExpr> = [];
     for (let sel of selSet.selections) {
       if (sel.kind == 'Field') {
         let field = <Field>sel;
@@ -97,15 +148,15 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
     return { expr: fields.map(f => f.expr).join('\n        `apply` ') }
   }
 
-  function getSelectionSetFields(selSet: SelectionSet, info: TypeInfo): Array<String> {
+  function getSelectionSetFields(selSet: SelectionSet, info: TypeInfo): Array<string> {
     info.enter(selSet);
-    let fields = [];
+    let fields: Array<string> = [];
     for (let sel of selSet.selections) {
       if (sel.kind == 'Field') {
         let field = <Field>sel;
-        let name = field.name.value;
+        let name = elmSafeName(field.name.value);
         if (field.alias) {
-          name = field.alias.value;
+          name = elmSafeName(field.alias.value);
         }
         fields.push(name);
       } else if (sel.kind == 'FragmentSpread') {
@@ -125,10 +176,12 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
   function walkField(field: Field, info: TypeInfo): ElmExpr {
     info.enter(field);
     // Name
-    let name = field.name.value;
+    let name = elmSafeName(field.name.value);
+    let originalName = field.name.value;
     // Alias
     if (field.alias) {
-      name = field.alias.value;
+      name = elmSafeName(field.alias.value);
+      originalName = field.alias.value;
     }
     // Arguments (opt)
     let args = field.arguments; // e.g. id: "1000"
@@ -145,7 +198,7 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
       //return { name, fields };
       let fieldNames = getSelectionSetFields(field.selectionSet, info);
       let shape = `(\\${fieldNames.join(' ')} -> { ${fieldNames.map(f => f + ' = ' + f).join(', ')} })`;
-      let left = '("' + name + '" :=\n';
+      let left = '("' + originalName + '" :=\n';
       let right = '(map ' + shape + ' ' + fields.expr + '))';
       let indent = '        ';
       if (prefix) {
@@ -159,7 +212,7 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
       let type = leafTypeToString(info.getType());
       info.leave(field);
       //return { name, type };
-      let expr = { expr: '("' + name + '" := ' + type +')' };
+      let expr = { expr: '("' + originalName + '" := ' + type +')' };
       if (isMaybe) {
         expr = { expr: '(maybe ' + expr.expr + ')' };
       }
@@ -222,5 +275,5 @@ export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
     }
   }
 
-  return walkOperationDefinition(def, info);
+  return walkDefinition(def, info);
 }

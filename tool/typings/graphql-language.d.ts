@@ -11,7 +11,14 @@
  * GraphQL parser.
  */
 declare module "graphql/language" {
-  export function parse(source:string, options?): Document;
+  export function parse(source:string, options?: any): Document;
+
+  export function visit(root: Node, visitor: Visitor, keyMap?: any): void;
+  
+  export interface Visitor {
+    enter(node: Node, key?: string, parent?: Node, path?: any, ancestors?: any): void;
+    leave(node: Node, key?: string, parent?: Node, path?: any, ancestors?: any): void;
+  }
 
   /**
    * Converts an AST into a string, using one set of reasonable
