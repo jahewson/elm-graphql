@@ -70,10 +70,11 @@ type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
 
 let graphqlFile = process.argv[2];
 if (!graphqlFile) {
-  console.error('usage: query-to-elm graphql_file <endpoint_url>');
+  console.error('usage: query-to-elm graphql_file <introspection_endpoint_url> <live_endpoint_url>');
   process.exit(1);
 }
-let uri = process.argv[3] || 'http://localhost:8080/graphql';
+let introspectionUrl = process.argv[3] || 'http://localhost:8080/graphql';
+let liveUrl = process.argv[4] || introspectionUrl;
 
 let queries = fs.readFileSync(graphqlFile, 'utf8');
 let queryDocument = parse(queries);
@@ -85,14 +86,14 @@ let moduleName = 'GraphQL.' + filename;
 
 let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
 
-let url = uri + '?query=' + encodeURIComponent(introspectionQuery.replace(/\n/g, '')); 
+let url = introspectionUrl + '?query=' + encodeURIComponent(introspectionQuery.replace(/\n/g, '')); 
 request(url, function (err, res, body) {
   if (err) {
     throw new Error(err);
   } else if (res.statusCode == 200) {
     let result = JSON.parse(body);
     let schema = buildClientSchema(result.data);
-    let [decls, expose] = translateQuery(uri, queryDocument, schema);
+    let [decls, expose] = translateQuery(liveUrl, queryDocument, schema);
     let elm = moduleToString(moduleName, expose, [
       'Task exposing (Task)',
       'Json.Decode exposing (..)',
