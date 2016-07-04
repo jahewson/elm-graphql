@@ -66,7 +66,8 @@ import {
   decoderForFragment
 } from './query-to-decoder';
 
-type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
+export type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
+export type FragmentDefinitionMap = { [name: string]: FragmentDefinition };
 
 let graphqlFile = process.argv[2];
 if (!graphqlFile) {
@@ -110,8 +111,8 @@ request(url, function (err, res, body) {
 function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Array<ElmDecl>, Array<string>] {
   let seenEnums: { [name: string]: GraphQLEnumType } = {};
   let expose: Array<string> = [];
-  let fragmentDefinitionMap: { [name: string]: FragmentDefinition } = {};
-  let seenFragments: { [name: string]: FragmentDefinition } = {};
+  let fragmentDefinitionMap: FragmentDefinitionMap = {};
+  let seenFragments: FragmentDefinitionMap = {};
 
   function walkQueryDocument(doc: Document, info: TypeInfo): [Array<ElmDecl>, Array<string>] {
     let decls: Array<ElmDecl> = [];

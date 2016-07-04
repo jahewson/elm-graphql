@@ -45,29 +45,31 @@ import {
 } from 'graphql/utilities';
 
 import {
+  FragmentDefinitionMap,
+  GraphQLEnumMap,
   elmSafeName,
   typeToElm
 } from './query-to-elm';
 
 export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
-                                schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
-                                fragmentDefinitionMap: { [name: string]: FragmentDefinition },
-                                seenFragments: { [name: string]: FragmentDefinition }): ElmExpr {
+                                schema: GraphQLSchema, seenEnums: GraphQLEnumMap,
+                                fragmentDefinitionMap: FragmentDefinitionMap,
+                                seenFragments: FragmentDefinitionMap): ElmExpr {
   return decoderFor(def, info, schema, seenEnums, fragmentDefinitionMap, seenFragments);
 }
 
 export function decoderForFragment(def: FragmentDefinition, info: TypeInfo,
-                                schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
-                                fragmentDefinitionMap: { [name: string]: FragmentDefinition },
-                                seenFragments: { [name: string]: FragmentDefinition }): ElmExpr {
+                                schema: GraphQLSchema, seenEnums: GraphQLEnumMap,
+                                fragmentDefinitionMap: FragmentDefinitionMap,
+                                seenFragments: FragmentDefinitionMap): ElmExpr {
   return decoderFor(def, info, schema, seenEnums, fragmentDefinitionMap, seenFragments);
 }
 
 
 export function decoderFor(def: OperationDefinition | FragmentDefinition, info: TypeInfo,
-                           schema: GraphQLSchema, seenEnums: { [name: string]: GraphQLEnumType },
-                           fragmentDefinitionMap: { [name: string]: FragmentDefinition },
-                           seenFragments: { [name: string]: FragmentDefinition }): ElmExpr {
+                           schema: GraphQLSchema, seenEnums: GraphQLEnumMap,
+                           fragmentDefinitionMap: FragmentDefinitionMap,
+                           seenFragments: FragmentDefinitionMap): ElmExpr {
 
   function walkDefinition(def: OperationDefinition | FragmentDefinition, info: TypeInfo) {
     if (def.kind == 'OperationDefinition') {
@@ -98,7 +100,8 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
       if (def.variableDefinitions) {
         for (let varDef of def.variableDefinitions) {
           let name = varDef.variable.name.value;
-          let type = inputTypeToString(typeFromAST(schema, varDef.type));
+
+          let type = typeToString(typeToElm(typeFromAST(schema, varDef.type)), 0);
           // todo: default value
           parameters.push({ name, type });
         }
@@ -212,7 +215,7 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
     } else {
       let isMaybe = !(info.getType() instanceof GraphQLList ||
                       info.getType() instanceof GraphQLNonNull);
-      let type = leafTypeToString(info.getType());
+      let type = typeToString(typeToElm(info.getType()), 0);
       info.leave(field);
       //return { name, type };
       let expr = { expr: '("' + originalName + '" := ' + type +')' };
@@ -221,17 +224,6 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
       }
       return expr;
     }
-  }
-
-  function leafTypeToString(type: GraphQLType): string {
-    let elmType = typeToElm(type);
-    return typeToString(elmType, 0);
-  }
-
-  // input types are defined in the query, not the schema
-  function inputTypeToString(type: GraphQLType): string {
-    let elmType = typeToElm(type);
-    return typeToString(elmType, 0);
   }
 
   return walkDefinition(def, info);
