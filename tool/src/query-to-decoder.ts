@@ -239,17 +239,18 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
       t = type.ofType;
     } else {
       // implicitly nullable
-      //prefix = 'Maybe ';
       t = type;
     }
     type = t;
 
     // leaf types only
     if (type instanceof GraphQLScalarType) {
-      if (type.name == 'ID') {
-        return prefix + 'string';
-      } else {
-        return prefix + type.name.toLowerCase();
+      switch (type.name) {
+        case 'Int': return prefix + 'int';
+        case 'Float': return prefix + 'float';
+        case 'Boolean': return prefix + 'bool';
+        case 'ID':
+        case 'String': return prefix + 'string';
       }
     } else if (type instanceof GraphQLEnumType) {
       return prefix + type.name.toLowerCase();
@@ -257,7 +258,6 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
       throw new Error('not a leaf type: ' + (<any>type).name);
     }
   }
-
 
   return walkDefinition(def, info);
 }

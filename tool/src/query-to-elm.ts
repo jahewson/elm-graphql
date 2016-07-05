@@ -344,6 +344,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
         case 'Int': encoder = 'Json.Encode.int ' + value; break;
         case 'Float': encoder = 'Json.Encode.float ' + value; break;
         case 'Boolean': encoder = 'Json.Encode.bool ' + value; break;
+        case 'ID':
         case 'String': encoder = 'Json.Encode.string ' + value; break;
       }
     } else {
@@ -445,10 +446,14 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
 export function typeToElm(type: GraphQLType, isNonNull = false): ElmType {
   let elmType: ElmType;
   
-  if (type instanceof GraphQLScalarType && type.name == 'Boolean') {
-    elmType = new ElmTypeName('Bool');
-  } else if (type instanceof GraphQLScalarType) {
-    elmType = new ElmTypeName(type.name);
+  if (type instanceof GraphQLScalarType) {
+    switch (type.name) {
+        case 'Int': elmType = new ElmTypeName('Int'); break;
+        case 'Float': elmType = new ElmTypeName('Float'); break;
+        case 'Boolean': elmType = new ElmTypeName('Bool'); break;
+        case 'ID':
+        case 'String': elmType = new ElmTypeName('String'); break;
+      }
   } else if (type instanceof GraphQLEnumType) {
     elmType = new ElmTypeName(type.name[0].toUpperCase() + type.name.substr(1));
   } else if (type instanceof GraphQLList) {
