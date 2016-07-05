@@ -20,7 +20,7 @@ export class ElmTypeApp  extends ElmType {
 }
 
 export class ElmTypeRecord  extends ElmType {
-  constructor(public fields: Array<ElmFieldDecl>) {
+  constructor(public fields: Array<ElmFieldDecl>, public typeParam?: string) {
     super();
   }
 }
@@ -36,10 +36,10 @@ export class ElmTypeDecl extends ElmDecl {
   }
 }
 
-export class ElmTypeAliasDecl extends ElmDecl {   // todo: shouldn't this be name -> type, where type = ElmTypeRecord
+export class ElmTypeAliasDecl extends ElmDecl {
   constructor(public name: string,
-              public fields: Array<ElmFieldDecl>,
-              public typeParams?: Array<string>) {
+              public type: ElmType,
+              public typeParams: Array<string> = []) {
     super();
   }
 }
@@ -95,13 +95,8 @@ export function typeDeclToString(type: ElmTypeDecl): string {
 }
 
 export function typeAliasDeclToString(type: ElmTypeAliasDecl): string {
-  if (type.fields.length == 0){
-    return 'type alias ' + type.name + ' = ' + type.name + '_ {}'; // hack
-  }
-  let typeParams = type.typeParams ? ' ' + type.typeParams.join(' ') : '';
-  let pipe = type.typeParams ? ' |' : '';
-  return 'type alias ' + type.name + typeParams + ' =\n' +
-    '    {' + typeParams + pipe + ' ' + type.fields.map(f => fieldToString(f, 1)).join('\n    , ') + '    }\n';
+  return 'type alias ' + type.name + ' ' + type.typeParams.join(' ') + '\n' +
+    '    = ' + typeToString(type.type, 0) + '\n';
 }
 
 export function funtionToString(func: ElmFunctionDecl): string {
@@ -124,8 +119,9 @@ export function typeToString(ty: ElmType, level: number): string {
     return '(' + ty.name + ' ' + typeToString(ty.arg, level) + ')';  // todo: omit unneccesary parens
   } else if (ty instanceof ElmTypeRecord) {
     let indent = makeIndent(level);
-    return `${indent}{ ` +
-            ty.fields.map(f => fieldToString(f, level)).join(`${indent}, `) +
+    let pipe = ty.typeParam ? ty.typeParam + ' | ' : '';
+    return `${indent}{ ` + pipe +
+            ty.fields.map(f => fieldToString(f, level + 1)).join(`${indent}, `) +
             `${indent}}`;
   } else {
     throw new Error('unexpected type: ' + ty.constructor.name + ' ' + JSON.stringify(ty));

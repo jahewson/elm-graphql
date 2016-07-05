@@ -8,6 +8,7 @@ module GraphQL exposing (..)
 
 import Task exposing (Task)
 import Json.Decode exposing (..)
+import Json.Encode
 import Http
 
 {-| Todo: document this
@@ -40,3 +41,11 @@ queryResult decoder =
 apply : Decoder (a -> b) -> Decoder a -> Decoder b
 apply func value =
     object2 (<|) func value
+
+
+{-| Todo: document this function.
+-}
+maybeEncode : (a -> Value) -> Maybe a -> Value
+maybeEncode e v = case v of
+    Nothing -> Json.Encode.null
+    Just a -> e a

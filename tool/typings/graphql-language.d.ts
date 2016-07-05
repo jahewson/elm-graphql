@@ -256,7 +256,8 @@ declare module "graphql/language" {
 
   // Type Reference
 
-  export type Type = NamedType
+  export type Type
+    = NamedType
     | ListType
     | NonNullType
 

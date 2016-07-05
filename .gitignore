@@ -6,3 +6,4 @@
 /tool/typings/*.map
 /graphql.config.json
 /elm-stuff
+.vscode

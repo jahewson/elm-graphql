@@ -52,23 +52,19 @@ import {
 } from './query-to-elm';
 
 export function decoderForQuery(def: OperationDefinition, info: TypeInfo,
-                                schema: GraphQLSchema, seenEnums: GraphQLEnumMap,
-                                fragmentDefinitionMap: FragmentDefinitionMap,
+                                schema: GraphQLSchema, fragmentDefinitionMap: FragmentDefinitionMap,
                                 seenFragments: FragmentDefinitionMap): ElmExpr {
-  return decoderFor(def, info, schema, seenEnums, fragmentDefinitionMap, seenFragments);
+  return decoderFor(def, info, schema, fragmentDefinitionMap, seenFragments);
 }
 
 export function decoderForFragment(def: FragmentDefinition, info: TypeInfo,
-                                schema: GraphQLSchema, seenEnums: GraphQLEnumMap,
-                                fragmentDefinitionMap: FragmentDefinitionMap,
+                                schema: GraphQLSchema, fragmentDefinitionMap: FragmentDefinitionMap,
                                 seenFragments: FragmentDefinitionMap): ElmExpr {
-  return decoderFor(def, info, schema, seenEnums, fragmentDefinitionMap, seenFragments);
+  return decoderFor(def, info, schema, fragmentDefinitionMap, seenFragments);
 }
 
-
 export function decoderFor(def: OperationDefinition | FragmentDefinition, info: TypeInfo,
-                           schema: GraphQLSchema, seenEnums: GraphQLEnumMap,
-                           fragmentDefinitionMap: FragmentDefinitionMap,
+                           schema: GraphQLSchema, fragmentDefinitionMap: FragmentDefinitionMap,
                            seenFragments: FragmentDefinitionMap): ElmExpr {
 
   function walkDefinition(def: OperationDefinition | FragmentDefinition, info: TypeInfo) {
@@ -94,7 +90,6 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
       // todo: Directives
       // SelectionSet
       let expr = walkSelectionSet(def.selectionSet, info);
-      //decls.push({ name: resultType, fields });
       // VariableDefinition
       let parameters: Array<ElmParameterDecl> = [];
       if (def.variableDefinitions) {
@@ -107,7 +102,6 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
         }
       }
       info.leave(def);
-      //return decls;
       
       return { expr: 'map ' + resultType + ' ' + expr.expr };
     }
@@ -133,25 +127,28 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
     return { expr: 'map ' + shape + ' ' + fields.expr };
   }
 
-  function walkSelectionSet(selSet: SelectionSet, info: TypeInfo): ElmExpr {
+  function walkSelectionSet(selSet: SelectionSet, info: TypeInfo, seenFields: Array<string> = []): ElmExpr {
     info.enter(selSet);
     let fields: Array<ElmExpr> = [];
     for (let sel of selSet.selections) {
       if (sel.kind == 'Field') {
         let field = <Field>sel;
-        fields.push(walkField(field, info));
+        if (seenFields.indexOf(field.name.value) == -1) {
+          fields.push(walkField(field, info));
+          seenFields.push(field.name.value);
+        }
       } else if (sel.kind == 'FragmentSpread') {
         // expand out all fragment spreads
         let spreadName = (<FragmentSpread>sel).name.value;
         let def = fragmentDefinitionMap[spreadName];
-        fields.push(walkSelectionSet(def.selectionSet, info));
+        fields.push(walkSelectionSet(def.selectionSet, info, seenFields));
       } else if (sel.kind == 'InlineFragment') {
         // todo: InlineFragment
         throw new Error('not implemented: InlineFragment');
       }
     }
     info.leave(selSet);
-    return { expr: fields.map(f => f.expr).join('\n        `apply` ') }
+    return { expr: fields.map(f => f.expr).filter(e => e.length > 0).join('\n        `apply` ') }
   }
 
   function getSelectionSetFields(selSet: SelectionSet, info: TypeInfo): Array<string> {
@@ -164,12 +161,18 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
         if (field.alias) {
           name = elmSafeName(field.alias.value);
         }
-        fields.push(name);
+        if (fields.indexOf(name) == -1) {
+          fields.push(name);
+        }
       } else if (sel.kind == 'FragmentSpread') {
         // expand out all fragment spreads
         let spreadName = (<FragmentSpread>sel).name.value;
         let def = fragmentDefinitionMap[spreadName];
-        fields = [...fields, ...getSelectionSetFields(def.selectionSet, info)];
+        for (let name of getSelectionSetFields(def.selectionSet, info)) {
+          if (fields.indexOf(name) == -1) {
+            fields.push(name);
+          }
+        }
       } else if (sel.kind == 'InlineFragment') {
         // todo: InlineFragment
         throw new Error('not implemented: InlineFragment');
@@ -201,7 +204,6 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
 
       let fields = walkSelectionSet(field.selectionSet, info);
       info.leave(field);
-      //return { name, fields };
       let fieldNames = getSelectionSetFields(field.selectionSet, info);
       let shape = `(\\${fieldNames.join(' ')} -> { ${fieldNames.map(f => f + ' = ' + f).join(', ')} })`;
       let left = '("' + originalName + '" :=\n';
@@ -215,16 +217,47 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
     } else {
       let isMaybe = !(info.getType() instanceof GraphQLList ||
                       info.getType() instanceof GraphQLNonNull);
-      let type = typeToString(typeToElm(info.getType()), 0);
+      let decoder = leafTypeToDecoder(info.getType());
       info.leave(field);
-      //return { name, type };
-      let expr = { expr: '("' + originalName + '" := ' + type +')' };
+      let expr = { expr: '("' + originalName + '" := ' + decoder +')' };
       if (isMaybe) {
         expr = { expr: '(maybe ' + expr.expr + ')' };
       }
       return expr;
     }
   }
+
+  function leafTypeToDecoder(type: GraphQLType): string {
+    let prefix = '';
+
+    // lists or non-null of leaf types only
+    let t: GraphQLType;
+    if (type instanceof GraphQLList) {
+      t = type.ofType;
+      prefix = 'list ';
+    } else if (type instanceof GraphQLNonNull) {
+      t = type.ofType;
+    } else {
+      // implicitly nullable
+      //prefix = 'Maybe ';
+      t = type;
+    }
+    type = t;
+
+    // leaf types only
+    if (type instanceof GraphQLScalarType) {
+      if (type.name == 'ID') {
+        return prefix + 'string';
+      } else {
+        return prefix + type.name.toLowerCase();
+      }
+    } else if (type instanceof GraphQLEnumType) {
+      return prefix + type.name.toLowerCase();
+    } else {
+      throw new Error('not a leaf type: ' + (<any>type).name);
+    }
+  }
+
 
   return walkDefinition(def, info);
 }
