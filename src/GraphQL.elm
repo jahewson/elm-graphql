@@ -19,11 +19,25 @@ type alias ID = String
 -}
 query : String -> String -> String -> String -> Decoder a -> Task Http.Error a
 query url query operation variables decoder =
-    Http.get (queryResult decoder) (Http.url url [
+    get (queryResult decoder) (Http.url url [
         ( "query", query ),
         ( "operationName", operation ),
         ( "variables", variables )])
 
+{-| Todo: document this function.
+-}
+get : Decoder value -> String -> Task Http.Error value
+get decoder url =
+  let request =
+        { verb = "GET"
+        , headers =
+            [ ("Accept", "application/json")
+            ]
+        , url = url
+        , body = Http.empty
+        }
+  in
+      Http.fromJson decoder (Http.send Http.defaultSettings request)
 
 {-| Todo: document this function.
 -}
