@@ -309,7 +309,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
              .join(`\n                , `) + '\n' +
              `                ]\n` +
              `    in\n` +
-             `    GraphQL.query endpointUrl graphQLQuery "${name}" (encode 0 graphQLParams) ${decodeFuncName}`
+             `    GraphQL.${def.operation} endpointUrl graphQLQuery "${name}" (encode 0 graphQLParams) ${decodeFuncName}`
          }
       ));
       let resultTypeName = resultType[0].toUpperCase() + resultType.substr(1);
