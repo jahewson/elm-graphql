@@ -448,12 +448,12 @@ export function typeToElm(type: GraphQLType, isNonNull = false): ElmType {
   
   if (type instanceof GraphQLScalarType) {
     switch (type.name) {
-        case 'Int': elmType = new ElmTypeName('Int'); break;
-        case 'Float': elmType = new ElmTypeName('Float'); break;
-        case 'Boolean': elmType = new ElmTypeName('Bool'); break;
-        case 'ID':
-        case 'String': elmType = new ElmTypeName('String'); break;
-      }
+      case 'Int': elmType = new ElmTypeName('Int'); break;
+      case 'Float': elmType = new ElmTypeName('Float'); break;
+      case 'Boolean': elmType = new ElmTypeName('Bool'); break;
+      case 'ID':
+      case 'String': elmType = new ElmTypeName('String'); break;
+    }
   } else if (type instanceof GraphQLEnumType) {
     elmType = new ElmTypeName(type.name[0].toUpperCase() + type.name.substr(1));
   } else if (type instanceof GraphQLList) {
