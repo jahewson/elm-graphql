@@ -34,8 +34,8 @@ mutation url query operation variables decoder =
 
 {-| Todo: document this function.
 -}
-fetch : String -> Decoder a -> String -> Task Http.Error a
-fetch verb decoder url =
+fetch : String -> String -> String -> String -> String -> Decoder a -> Task Http.Error a
+fetch verb url query operation variables decoder =
     let
         request =
             { verb = verb
