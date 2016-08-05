@@ -71,6 +71,7 @@ import {
 } from './query-to-decoder';
 
 let optionDefinitions = [
+  {name: "method", alias: "m", type: String},
   {name: "args", type: String, multiple: true, defaultOption: true}
 ];
 
@@ -98,8 +99,14 @@ let moduleName = 'GraphQL.' + filename;
 
 let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
 
-let url = introspectionUrl + '?query=' + encodeURIComponent(introspectionQuery.replace(/\n/g, '')); 
-request(url, function (err, res, body) {
+let url = introspectionUrl;
+let data = {query: introspectionQuery.replace(/\n/g, '')};
+let method = options["method"] || "GET";
+let reqopts = method == "GET" ? {url:url, method:method, qs:data}
+                              : {url:url, method:method,
+                                 headers: [{"Content-Type": "application/json"}],
+                                 body: JSON.stringify(data)};
+request(reqopts, function (err, res, body) {
   if (err) {
     throw new Error(err);
   } else if (res.statusCode == 200) {
