@@ -9,11 +9,13 @@
 /// <reference path="../typings/graphql-types.d.ts" />
 /// <reference path="../typings/graphql-language.d.ts" />
 /// <reference path="../typings/graphql-utilities.d.ts" />
+/// <reference path="../typings/command-line-args.d.ts" />
 
 import 'source-map-support/register';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as request from 'request';
+import * as commandLineArgs from 'command-line-args';
 
 import {
   Definition,
@@ -68,17 +70,23 @@ import {
   decoderForFragment
 } from './query-to-decoder';
 
+let optionDefinitions = [
+  {name: "args", type: String, multiple: true, defaultOption: true}
+];
+
+let options = commandLineArgs(optionDefinitions);
+
 export type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
 export type GraphQLTypeMap = { [name: string]: GraphQLType };
 export type FragmentDefinitionMap = { [name: string]: FragmentDefinition };
 
-let graphqlFile = process.argv[2];
+let graphqlFile = options["args"][0];
 if (!graphqlFile) {
   console.error('usage: query-to-elm graphql_file <introspection_endpoint_url> <live_endpoint_url>');
   process.exit(1);
 }
-let introspectionUrl = process.argv[3] || 'http://localhost:8080/graphql';
-let liveUrl = process.argv[4] || introspectionUrl;
+let introspectionUrl = options["args"][1] || 'http://localhost:8080/graphql';
+let liveUrl = options["args"][2] || introspectionUrl;
 
 let queries = fs.readFileSync(graphqlFile, 'utf8');
 let queryDocument = parse(queries);
