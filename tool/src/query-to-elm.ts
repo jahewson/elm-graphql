@@ -301,6 +301,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       let elmParamsType = new ElmTypeRecord(parameters.map(p => new ElmFieldDecl(p.name, p.type)));
       let elmParams = new ElmParameterDecl('params', elmParamsType);
       let elmParamsDecl = elmParamsType.fields.length > 0 ? [elmParams] : [];
+      let methodParam = def.operation == 'query' ? `"${options['method'] || 'GET'}"` + ' ' : '';
 
       decls.push(new ElmFunctionDecl(
          funcName, elmParamsDecl, new ElmTypeName(`Task Http.Error ${resultType}`),
@@ -324,7 +325,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
              .join(`\n                , `) + '\n' +
              `                ]\n` +
              `    in\n` +
-             `    GraphQL.${def.operation} endpointUrl graphQLQuery "${name}" (encode 0 graphQLParams) ${decodeFuncName}`
+             `    GraphQL.${def.operation} ${methodParam}endpointUrl graphQLQuery "${name}" graphQLParams ${decodeFuncName}`
          }
       ));
       let resultTypeName = resultType[0].toUpperCase() + resultType.substr(1);
