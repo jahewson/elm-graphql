@@ -5,7 +5,7 @@
   "main": "lib/query-to-elm.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "preinstall": "tsc src/query-to-elm.ts --outDir lib --target ES5 --module commonjs --noImplicitAny --sourceMap",
+    "postinstall": "tsc src/query-to-elm.ts --outDir lib --target ES5 --module commonjs --noImplicitAny --sourceMap",
     "start": "node lib/query-to-elm.js"
   },
   "author": "John Hewson",
