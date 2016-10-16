@@ -99,7 +99,8 @@ declare module "graphql/type" {
 
   export class GraphQLUnionType extends GraphQLType {
     name: string;
-    constructor(config: any)
+    constructor(config: any);
+    getTypes(): Array<GraphQLObjectType>;
   }
 
   export class GraphQLEnumType extends GraphQLType {

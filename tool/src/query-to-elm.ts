@@ -20,6 +20,7 @@ import {
   OperationDefinition,
   FragmentDefinition,
   FragmentSpread,
+  InlineFragment,
   SelectionSet,
   Field,
   Document,
@@ -53,7 +54,8 @@ import {
   GraphQLType,
   GraphQLObjectType,
   GraphQLInterfaceType,
-  GraphQLInputObjectType
+  GraphQLInputObjectType,
+  GraphQLUnionType
 } from 'graphql/type';
 
 import {
@@ -71,6 +73,10 @@ import {
 export type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
 export type GraphQLTypeMap = { [name: string]: GraphQLType };
 export type FragmentDefinitionMap = { [name: string]: FragmentDefinition };
+export type GraphQLUnionMap = { [name: string]: GraphQLUnionType };
+
+const alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
+                  'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'];
 
 let graphqlFile = process.argv[2];
 if (!graphqlFile) {
@@ -86,7 +92,7 @@ let queryDocument = parse(queries);
 let basename = path.basename(graphqlFile);
 let extname =  path.extname(graphqlFile);
 let filename = basename.substr(0, basename.length - extname.length);
-let moduleName = 'GraphQL.' + filename;
+let moduleName = 'GraphQL.' + filename[0].toUpperCase() + filename.substr(1);
 
 let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
 
@@ -123,6 +129,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     buildFragmentDefinitionMap(doc);
     let seenFragments: FragmentDefinitionMap = {};
     let seenEnums: GraphQLEnumMap = {};
+    let seenUnions: GraphQLUnionMap = {};
 
     for (let def of doc.definitions) {
       if (def.kind == 'OperationDefinition') {
@@ -132,6 +139,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       }
       collectFragments(def, seenFragments);
       collectEnums(def, seenEnums);
+      collectUnions(def, seenUnions);
     }
 
     for (let fragName in seenFragments) {
@@ -151,6 +159,12 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       decls.unshift(walkEnum(seenEnum));
       decls.push(decoderForEnum(seenEnum));
       expose.push(seenEnum.name);
+    }
+
+    for (let name in seenUnions) {
+      let union = seenUnions[name];
+      decls.unshift(walkUnion(union));
+      expose.push(union.name);
     }
 
     return [decls, expose];
@@ -183,6 +197,23 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     return fragments;
   }
   
+  function collectUnions(def: Definition, unions: GraphQLUnionMap = {}): GraphQLUnionMap {
+    let info = new TypeInfo(schema);
+    visit(doc, {
+      enter: function(node, key, parent) {
+        if (node.kind == 'InlineFragment') {
+          let parentType = <GraphQLUnionType> info.getType();
+          unions[parentType.name] = parentType;
+        }
+        info.enter(node);
+      },
+      leave: function(node) {
+        info.leave(node);
+      }
+    });
+    return unions;
+  }
+
   function collectEnums(def: Definition, enums: GraphQLEnumMap = {}): GraphQLEnumMap {
     let info = new TypeInfo(schema);
     visit(doc, {
@@ -241,6 +272,12 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
               });
   }
 
+  function walkUnion(union: GraphQLUnionType): ElmTypeDecl {
+    let types = union.getTypes();
+    let params = types.map((t, i) => alphabet[i]).join(' ');
+    return new ElmTypeDecl(union.name + ' ' + params, types.map((t, i) => elmSafeName(t.name) + ' ' + alphabet[i]));
+  }
+  
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): Array<ElmDecl> {
     info.enter(def);
     if (!info.getType()) {
@@ -372,35 +409,76 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     let type: ElmType = new ElmTypeRecord(fields, 'a')
     for (let spreadName of spreads) {
       let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
-      type = new ElmTypeApp(typeName, type);
+      type = new ElmTypeApp(typeName, [type]);
     }
     
     decls.push(new ElmTypeAliasDecl(resultType + '_', type, ['a']));
-    decls.push(new ElmTypeAliasDecl(resultType, new ElmTypeApp(resultType + '_', new ElmTypeRecord([]))));
+    decls.push(new ElmTypeAliasDecl(resultType, new ElmTypeApp(resultType + '_', [new ElmTypeRecord([])])));
 
     info.leave(def);
     return decls;
   }
 
-  function walkSelectionSet(selSet: SelectionSet, info: TypeInfo): [Array<ElmFieldDecl>, Array<string>] {
+  function walkSelectionSet(selSet: SelectionSet, info: TypeInfo): [Array<ElmFieldDecl>, Array<string>, ElmType] {
     info.enter(selSet);
     let fields: Array<ElmFieldDecl> = [];
     let spreads: Array<string> = [];
 
-    for (let sel of selSet.selections) {
-      if (sel.kind == 'Field') {
-        let field = <Field>sel;
-        fields.push(walkField(field, info));
-      } else if (sel.kind == 'FragmentSpread') {
-        spreads.push((<FragmentSpread>sel).name.value);
-      } else if (sel.kind == 'InlineFragment') {
-        // todo: InlineFragment
-        throw new Error('not implemented: InlineFragment');
+    if (info.getType() instanceof GraphQLUnionType) {
+      let type = walkUnionSelectionSet(selSet, info);
+      return [[], [], type];
+    } else {
+      for (let sel of selSet.selections) {
+        if (sel.kind == 'Field') {
+          let field = <Field>sel;
+          fields.push(walkField(field, info));
+        } else if (sel.kind == 'FragmentSpread') {
+          spreads.push((<FragmentSpread>sel).name.value);
+        } else if (sel.kind == 'InlineFragment') {
+          let frag = (<InlineFragment>sel);
+          // todo: InlineFragment
+          throw new Error('not implemented: InlineFragment on ' + frag.typeCondition.name.value);
+        }
       }
-    }
 
-    info.leave(selSet);
-    return [fields, spreads];
+      info.leave(selSet);
+      return [fields, spreads, null];
+    }
+  }
+  
+  function walkUnionSelectionSet(selSet: SelectionSet, info: TypeInfo): ElmType {
+    let union = <GraphQLUnionType>info.getType();
+
+      let typeMap: { [name: string]: ElmType } = {}; 
+      for (let type of union.getTypes()) {
+        typeMap[type.name] = new ElmTypeRecord([]);
+      }
+
+      for (let sel of selSet.selections) {
+        if (sel.kind == 'InlineFragment') {
+          let inline = (<InlineFragment>sel);
+
+          info.enter(inline);
+          let [fields, spreads] = walkSelectionSet(inline.selectionSet, info);
+          info.leave(inline);
+          
+          // record
+          let type: ElmType = new ElmTypeRecord(fields);
+          // spreads
+          for (let spreadName of spreads) {
+            let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
+            type = new ElmTypeApp(typeName, [type]);
+          }
+
+          typeMap[inline.typeCondition.name.value] = type;
+        }
+      }
+
+      let args: Array<ElmType> = [];
+      for (let name in typeMap) {
+        args.push(typeMap[name]);
+      }
+      return new ElmTypeApp(union.name, args);
   }
 
   function walkField(field: Field, info: TypeInfo): ElmFieldDecl {
@@ -417,17 +495,17 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
     // SelectionSet
     if (field.selectionSet) {
       let isList = info.getType() instanceof GraphQLList;
-      let [fields, spreads] = walkSelectionSet(field.selectionSet, info);
+      let [fields, spreads, union] = walkSelectionSet(field.selectionSet, info);
       // record
-      let type: ElmType = new ElmTypeRecord(fields);
+      let type: ElmType = union ? union : new ElmTypeRecord(fields);
       // spreads
       for (let spreadName of spreads) {
         let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
-        type = new ElmTypeApp(typeName, type);
+        type = new ElmTypeApp(typeName, [type]);
       }
       // list
       if (isList) {
-        type = new ElmTypeApp('List', type);
+        type = new ElmTypeApp('List', [type]);
       }
       info.leave(field);
       return new ElmFieldDecl(name, type)
@@ -457,7 +535,7 @@ export function typeToElm(type: GraphQLType, isNonNull = false): ElmType {
   } else if (type instanceof GraphQLEnumType) {
     elmType = new ElmTypeName(type.name[0].toUpperCase() + type.name.substr(1));
   } else if (type instanceof GraphQLList) {
-    elmType = new ElmTypeApp('List', typeToElm(type.ofType, true));
+    elmType = new ElmTypeApp('List', [typeToElm(type.ofType, true)]);
   } else if (type instanceof GraphQLObjectType ||
              type instanceof GraphQLInterfaceType ||
              type instanceof GraphQLInputObjectType) {
@@ -475,7 +553,7 @@ export function typeToElm(type: GraphQLType, isNonNull = false): ElmType {
   }
 
   if (!isNonNull && !(type instanceof GraphQLList) && !(type instanceof GraphQLNonNull)) {
-    elmType = new ElmTypeApp('Maybe', elmType);
+    elmType = new ElmTypeApp('Maybe', [elmType]);
   }
   return elmType;
 }
@@ -483,6 +561,10 @@ export function typeToElm(type: GraphQLType, isNonNull = false): ElmType {
 export function elmSafeName(graphQlName: string): string {
   switch (graphQlName) {
     case 'type': return "type'";
+    case 'Task': return "Task'";
+    case 'List': return "List'";
+    case 'Http': return "Http'";
+    case 'GraphQL': return "GraphQL'";
     // todo: more...
     default: return graphQlName;
   }

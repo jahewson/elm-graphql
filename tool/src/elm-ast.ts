@@ -14,7 +14,7 @@ export class ElmTypeName extends ElmType {
 }
 
 export class ElmTypeApp  extends ElmType {
-  constructor(public name: string, public arg: ElmType) {
+  constructor(public name: string, public args: Array<ElmType>) {
     super();
   }
 }
@@ -109,14 +109,19 @@ export function funtionToString(func: ElmFunctionDecl): string {
 }
 
 function fieldToString(field: ElmFieldDecl, level: number): string {
-  return field.name + ' : ' + typeToString(field.type, level) + '\n';
+  return field.name + ' : ' + typeToString(field.type, level, true) + '\n';
 }
 
-export function typeToString(ty: ElmType, level: number): string {
+export function typeToString(ty: ElmType, level: number, isField?: boolean): string {
   if (ty instanceof ElmTypeName) {
     return ty.name;
   } else if (ty instanceof ElmTypeApp) {
-    return '(' + ty.name + ' ' + typeToString(ty.arg, level) + ')';  // todo: omit unneccesary parens
+    let str = ty.name + ' ' + ty.args.map(arg => typeToString(arg, level)).join(' ');
+    if (isField) {
+      return str;
+    } else {
+      return '(' + str + ')';
+    }
   } else if (ty instanceof ElmTypeRecord) {
     let indent = makeIndent(level);
     let pipe = ty.typeParam ? ty.typeParam + ' | ' : '';

@@ -11,6 +11,7 @@ import {
   OperationDefinition,
   FragmentDefinition,
   FragmentSpread,
+  InlineFragment,
   SelectionSet,
   Field,
   Document,
@@ -34,7 +35,8 @@ import {
   GraphQLScalarType,
   GraphQLEnumType,
   GraphQLType,
-  GraphQLInputType
+  GraphQLInputType,
+  GraphQLUnionType
 } from 'graphql/type';
 
 import {
@@ -143,8 +145,7 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
         let def = fragmentDefinitionMap[spreadName];
         fields.push(walkSelectionSet(def.selectionSet, info, seenFields));
       } else if (sel.kind == 'InlineFragment') {
-        // todo: InlineFragment
-        throw new Error('not implemented: InlineFragment');
+        throw new Error('Should not happen');
       }
     }
     info.leave(selSet);
@@ -174,8 +175,7 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
           }
         }
       } else if (sel.kind == 'InlineFragment') {
-        // todo: InlineFragment
-        throw new Error('not implemented: InlineFragment');
+        throw new Error('Should not happen');
       }
     }
     info.leave(selSet);
@@ -187,44 +187,87 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
     // Name
     let name = elmSafeName(field.name.value);
     let originalName = field.name.value;
+
     // Alias
     if (field.alias) {
       name = elmSafeName(field.alias.value);
       originalName = field.alias.value;
     }
+
     // Arguments (opt)
     let args = field.arguments; // e.g. id: "1000"
+    
     // todo: Directives
-    // SelectionSet
-    if (field.selectionSet) {
-      let prefix = '';
-      if (info.getType() instanceof GraphQLList) {
-        prefix = 'list ';
-      }
-
-      let fields = walkSelectionSet(field.selectionSet, info);
-      info.leave(field);
-      let fieldNames = getSelectionSetFields(field.selectionSet, info);
-      let shape = `(\\${fieldNames.join(' ')} -> { ${fieldNames.map(f => f + ' = ' + f).join(', ')} })`;
-      let left = '("' + originalName + '" :=\n';
-      let right = '(map ' + shape + ' ' + fields.expr + '))';
-      let indent = '        ';
-      if (prefix) {
-        return { expr: left + indent + '(' + prefix + right + ')' };
-      } else {
-        return { expr: left + indent + right };
-      }
+    
+    if (info.getType() instanceof GraphQLUnionType) {
+      // Union
+      return walkUnion(originalName, field, info);
     } else {
-      let isMaybe = !(info.getType() instanceof GraphQLList ||
-                      info.getType() instanceof GraphQLNonNull);
-      let decoder = leafTypeToDecoder(info.getType());
-      info.leave(field);
-      let expr = { expr: '("' + originalName + '" := ' + decoder +')' };
-      if (isMaybe) {
-        expr = { expr: '(maybe ' + expr.expr + ')' };
+      // SelectionSet
+      if (field.selectionSet) {
+        let prefix = '';
+        if (info.getType() instanceof GraphQLList) {
+          prefix = 'list ';
+        }
+
+        let fields = walkSelectionSet(field.selectionSet, info);
+        info.leave(field);
+        let fieldNames = getSelectionSetFields(field.selectionSet, info);
+        let shape = `(\\${fieldNames.join(' ')} -> { ${fieldNames.map(f => f + ' = ' + f).join(', ')} })`;
+        let left = '("' + originalName + '" :=\n';
+        let right = '(map ' + shape + ' ' + fields.expr + '))';
+        let indent = '        ';
+        if (prefix) {
+          return { expr: left + indent + '(' + prefix + right + ')' };
+        } else {
+          return { expr: left + indent + right };
+        }
+      } else {
+        let isMaybe = !(info.getType() instanceof GraphQLList ||
+                        info.getType() instanceof GraphQLNonNull);
+        let decoder = leafTypeToDecoder(info.getType());
+        info.leave(field);
+        let expr = { expr: '("' + originalName + '" := ' + decoder +')' };
+        if (isMaybe) {
+          expr = { expr: '(maybe ' + expr.expr + ')' };
+        }
+        return expr;
       }
-      return expr;
     }
+  }
+
+  function walkUnion(originalName: string, field: Field, info: TypeInfo): ElmExpr {
+    let decoder = '\n        (\\typename -> case typename of';
+    let indent = '            ';
+
+    for (let sel of field.selectionSet.selections) {
+      if (sel.kind == 'InlineFragment') {
+        let inlineFragment = <InlineFragment> sel;
+        decoder += `\n${indent}"${inlineFragment.typeCondition.name.value}" -> `;
+
+        info.enter(inlineFragment);
+        let fields = walkSelectionSet(inlineFragment.selectionSet, info);
+        info.leave(inlineFragment);
+        let fieldNames = getSelectionSetFields(inlineFragment.selectionSet, info);
+        let ctor = elmSafeName(inlineFragment.typeCondition.name.value);
+        let shape = `(\\${fieldNames.join(' ')} -> ${ctor} { ${fieldNames.map(f => f + ' = ' + f).join(', ')} })`;
+        let right = '(map ' + shape + ' ' + fields.expr + ')';
+        decoder += right;
+
+      } else if (sel.kind == 'Field') {
+        let field = <Field>sel;
+        if (field.name.value != '__typename') {
+          throw new Error('Unexpected field: ' + field.name.value);
+        }
+      } else {
+        throw new Error('Unexpected: ' + sel.kind);
+      }
+    }
+
+    decoder += `\n${indent}_ -> fail "Unexpected union type")`;
+
+    decoder = '(("__typename" := string) `andThen` ' + decoder + ')';
+    return { expr: '("' + originalName + '" := ' + decoder +')' };
   }
 
   function leafTypeToDecoder(type: GraphQLType): string {
