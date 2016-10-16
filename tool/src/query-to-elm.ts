@@ -9,11 +9,13 @@
 /// <reference path="../typings/graphql-types.d.ts" />
 /// <reference path="../typings/graphql-language.d.ts" />
 /// <reference path="../typings/graphql-utilities.d.ts" />
+/// <reference path="../typings/command-line-args.d.ts" />
 
 import 'source-map-support/register';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as request from 'request';
+import * as commandLineArgs from 'command-line-args';
 
 import {
   Definition,
@@ -70,6 +72,13 @@ import {
   decoderForFragment
 } from './query-to-decoder';
 
+let optionDefinitions = [
+  {name: "method", alias: "m", type: String},
+  {name: "args", type: String, multiple: true, defaultOption: true}
+];
+
+let options = commandLineArgs(optionDefinitions);
+
 export type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
 export type GraphQLTypeMap = { [name: string]: GraphQLType };
 export type FragmentDefinitionMap = { [name: string]: FragmentDefinition };
@@ -78,13 +87,13 @@ export type GraphQLUnionMap = { [name: string]: GraphQLUnionType };
 const alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
                   'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'];
 
-let graphqlFile = process.argv[2];
+let graphqlFile = options["args"][0];
 if (!graphqlFile) {
   console.error('usage: query-to-elm graphql_file <introspection_endpoint_url> <live_endpoint_url>');
   process.exit(1);
 }
-let introspectionUrl = process.argv[3] || 'http://localhost:8080/graphql';
-let liveUrl = process.argv[4] || introspectionUrl;
+let introspectionUrl = options["args"][1] || 'http://localhost:8080/graphql';
+let liveUrl = options["args"][2] || introspectionUrl;
 
 let queries = fs.readFileSync(graphqlFile, 'utf8');
 let queryDocument = parse(queries);
@@ -96,8 +105,14 @@ let moduleName = 'GraphQL.' + filename[0].toUpperCase() + filename.substr(1);
 
 let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
 
-let url = introspectionUrl + '?query=' + encodeURIComponent(introspectionQuery.replace(/\n/g, '')); 
-request(url, function (err, res, body) {
+let url = introspectionUrl;
+let data = {query: introspectionQuery.replace(/\n/g, '')};
+let method = options["method"] || "GET";
+let reqopts = method == "GET" ? {url:url, method:method, qs:data}
+                              : {url:url, method:method,
+                                 headers: [{"Content-Type": "application/json"}],
+                                 body: JSON.stringify(data)};
+request(reqopts, function (err, res, body) {
   if (err) {
     throw new Error(err);
   } else if (res.statusCode == 200) {
@@ -323,6 +338,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       let elmParamsType = new ElmTypeRecord(parameters.map(p => new ElmFieldDecl(p.name, p.type)));
       let elmParams = new ElmParameterDecl('params', elmParamsType);
       let elmParamsDecl = elmParamsType.fields.length > 0 ? [elmParams] : [];
+      let methodParam = def.operation == 'query' ? `"${options['method'] || 'GET'}"` + ' ' : '';
 
       decls.push(new ElmFunctionDecl(
          funcName, elmParamsDecl, new ElmTypeName(`Task Http.Error ${resultType}`),
@@ -346,7 +362,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
              .join(`\n                , `) + '\n' +
              `                ]\n` +
              `    in\n` +
-             `    GraphQL.${def.operation} endpointUrl graphQLQuery "${name}" (encode 0 graphQLParams) ${decodeFuncName}`
+             `    GraphQL.${def.operation} ${methodParam}endpointUrl graphQLQuery "${name}" graphQLParams ${decodeFuncName}`
          }
       ));
       let resultTypeName = resultType[0].toUpperCase() + resultType.substr(1);
