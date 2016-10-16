@@ -4,7 +4,8 @@
     "sourceMap": true,
     "module": "commonjs",
     "noImplicitAny": true,
-    "suppressImplicitAnyIndexErrors": true
+    "suppressImplicitAnyIndexErrors": true,
+    "outDir": "lib"
   },
   "exclude": [
 	  "node_modules"
