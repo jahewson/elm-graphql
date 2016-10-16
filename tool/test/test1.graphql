@@ -1,0 +1,12 @@
+query q1
+{
+  test1 {
+    __typename
+    ... on List {
+      name
+    }
+    ... on Task {
+      text
+    }
+  }
+}

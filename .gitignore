@@ -5,5 +5,8 @@
 /tool/typings/*.js
 /tool/typings/*.map
 /graphql.config.json
-/elm-stuff
+elm-stuff
 .vscode
+/tool/test/index.html
+/tool/test/*.elm
+!/tool/test/GraphQL.elm
