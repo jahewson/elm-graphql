@@ -1,7 +1,7 @@
 {
   "name": "elm-graphql",
-  "version": "0.1.0",
-  "description": "GraphQL to Elm",
+  "version": "0.9.0",
+  "description": "Elm code generator for GraphQL",
   "main": "lib/query-to-elm.js",
   "scripts": {
     "tsc": "tsc",
@@ -16,12 +16,12 @@
     "command-line-args": "^3.0.1",
     "graphql": "^0.6.2",
     "request": "^2.69.0",
-    "source-map-support": "^0.4.0"
+    "source-map-support": "^0.4.0",
+    "typescript": "^1.8.0"
   },
   "devDependencies": {
     "express": "^4.14.0",
     "express-graphql": "^0.5.3",
-    "graphql-tools": "^0.6.1",
-    "typescript": "^1.8.0"
+    "graphql-tools": "^0.6.1"
   }
 }
