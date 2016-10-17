@@ -1,6 +1,6 @@
 {
   "name": "elm-graphql",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Elm code generator for GraphQL",
   "main": "lib/main.js",
   "bin": "bin/elm-graphql",
