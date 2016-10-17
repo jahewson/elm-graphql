@@ -1,13 +1,12 @@
 # elm-graphql
 
-`elm-graphql` generates Elm code for making GraphQL queries in a type-safe manner.
+`elm-graphql` generates [Elm](http://elm-lang.org) code for making [GraphQL](http://graphql.org) queries in a type-safe manner.
 
 At compile time, `elm-graphql` takes GraphQL schema and named queries in a
 .graphql file and generates corresponding Elm types. The schema is obtained by introspection
 of a live GraphQL server.
 
-`elm-graphql` is written in TypeScript and uses Facebook's [graphql-js](https://github.com/graphql/graphql-js)
-to handle the GraphQL parsing.
+`elm-graphql` is simply for making queries, it **is not** a framework like [Relay](https://facebook.github.io/relay/) but it could be the foundation other abstractions in the future.
 
 ## Install
 
