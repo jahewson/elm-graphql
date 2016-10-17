@@ -5,17 +5,9 @@
 
 /// <reference path="../typings/node.d.ts" />
 /// <reference path="../typings/es6-function.d.ts" />
-/// <reference path="../typings/request.d.ts" />
 /// <reference path="../typings/graphql-types.d.ts" />
 /// <reference path="../typings/graphql-language.d.ts" />
 /// <reference path="../typings/graphql-utilities.d.ts" />
-/// <reference path="../typings/command-line-args.d.ts" />
-
-import 'source-map-support/register';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as request from 'request';
-import * as commandLineArgs from 'command-line-args';
 
 import {
   Definition,
@@ -62,8 +54,6 @@ import {
 
 import {
   TypeInfo,
-  buildClientSchema,
-  introspectionQuery,
   typeFromAST,
 } from 'graphql/utilities';
 
@@ -71,13 +61,6 @@ import {
   decoderForQuery,
   decoderForFragment
 } from './query-to-decoder';
-
-let optionDefinitions = [
-  {name: "method", alias: "m", type: String},
-  {name: "args", type: String, multiple: true, defaultOption: true}
-];
-
-let options = commandLineArgs(optionDefinitions);
 
 export type GraphQLEnumMap = { [name: string]: GraphQLEnumType };
 export type GraphQLTypeMap = { [name: string]: GraphQLType };
@@ -87,52 +70,20 @@ export type GraphQLUnionMap = { [name: string]: GraphQLUnionType };
 const alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
                   'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'];
 
-let graphqlFile = options["args"][0];
-if (!graphqlFile) {
-  console.error('usage: query-to-elm graphql_file <introspection_endpoint_url> <live_endpoint_url>');
-  process.exit(1);
+export function queryToElm(graphql: string, moduleName: string, liveUrl: string, verb: string,
+                           schema: GraphQLSchema): string {
+  let queryDocument = parse(graphql);
+  let [decls, expose] = translateQuery(liveUrl, queryDocument, schema, verb);
+  return moduleToString(moduleName, expose, [
+    'Task exposing (Task)',
+    'Json.Decode exposing (..)',
+    'Json.Encode exposing (encode)',
+    'Http',
+    'GraphQL exposing (apply, maybeEncode, ID)'
+  ], decls);
 }
-let introspectionUrl = options["args"][1] || 'http://localhost:8080/graphql';
-let liveUrl = options["args"][2] || introspectionUrl;
 
-let queries = fs.readFileSync(graphqlFile, 'utf8');
-let queryDocument = parse(queries);
-
-let basename = path.basename(graphqlFile);
-let extname =  path.extname(graphqlFile);
-let filename = basename.substr(0, basename.length - extname.length);
-let moduleName = 'GraphQL.' + filename[0].toUpperCase() + filename.substr(1);
-
-let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
-
-let url = introspectionUrl;
-let data = {query: introspectionQuery.replace(/\n/g, '')};
-let method = options["method"] || "GET";
-let reqopts = method == "GET" ? {url:url, method:method, qs:data}
-                              : {url:url, method:method,
-                                 headers: [{"Content-Type": "application/json"}],
-                                 body: JSON.stringify(data)};
-request(reqopts, function (err, res, body) {
-  if (err) {
-    throw new Error(err);
-  } else if (res.statusCode == 200) {
-    let result = JSON.parse(body);
-    let schema = buildClientSchema(result.data);
-    let [decls, expose] = translateQuery(liveUrl, queryDocument, schema);
-    let elm = moduleToString(moduleName, expose, [
-      'Task exposing (Task)',
-      'Json.Decode exposing (..)',
-      'Json.Encode exposing (encode)',
-      'Http',
-      'GraphQL exposing (apply, maybeEncode, ID)'
-    ], decls);
-    fs.writeFileSync(outPath, elm);
-  } else {
-    throw new Error('HTTP status ' + res.statusCode);
-  }
-});
-
-function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Array<ElmDecl>, Array<string>] {
+function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb: string): [Array<ElmDecl>, Array<string>] {
   //let seenEnums: GraphQLEnumMap = {};
   let expose: Array<string> = [];
   let fragmentDefinitionMap: FragmentDefinitionMap = {};
@@ -338,7 +289,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema): [Arr
       let elmParamsType = new ElmTypeRecord(parameters.map(p => new ElmFieldDecl(p.name, p.type)));
       let elmParams = new ElmParameterDecl('params', elmParamsType);
       let elmParamsDecl = elmParamsType.fields.length > 0 ? [elmParams] : [];
-      let methodParam = def.operation == 'query' ? `"${options['method'] || 'GET'}"` + ' ' : '';
+      let methodParam = def.operation == 'query' ? `"${verb}" ` : '';
 
       decls.push(new ElmFunctionDecl(
          funcName, elmParamsDecl, new ElmTypeName(`Task Http.Error ${resultType}`),
