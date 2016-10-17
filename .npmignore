@@ -4,3 +4,4 @@
 /typings
 /test
 tsconfig.json
+/lib/*.map
