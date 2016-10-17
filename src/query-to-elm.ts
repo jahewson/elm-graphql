@@ -84,7 +84,6 @@ export function queryToElm(graphql: string, moduleName: string, liveUrl: string,
 }
 
 function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb: string): [Array<ElmDecl>, Array<string>] {
-  //let seenEnums: GraphQLEnumMap = {};
   let expose: Array<string> = [];
   let fragmentDefinitionMap: FragmentDefinitionMap = {};
 
@@ -110,8 +109,8 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
 
     for (let fragName in seenFragments) {
       let frag = seenFragments[fragName];
-      let decodeFragFuncName = fragName[0].toLowerCase() + fragName.substr(1);
-      let fragTypeName = fragName[0].toUpperCase() + fragName.substr(1) + 'Result';
+      let decodeFragFuncName = fragName[0].toLowerCase() + fragName.substr(1) + 'Decoder';
+      let fragTypeName = fragName[0].toUpperCase() + fragName.substr(1);
       decls.push(new ElmFunctionDecl(
               decodeFragFuncName, [],
               new ElmTypeName('Decoder ' + fragTypeName),
@@ -230,7 +229,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
   function decoderForEnum(enumType: GraphQLEnumType): ElmFunctionDecl {
     // might need to be Maybe Episode, with None -> fail in the Decoder
     let decoderTypeName = enumType.name[0].toUpperCase() + enumType.name.substr(1);
-    return new ElmFunctionDecl(enumType.name.toLowerCase(), [], new ElmTypeName('Decoder ' + decoderTypeName),
+    return new ElmFunctionDecl(enumType.name.toLowerCase() + 'Decoder', [], new ElmTypeName('Decoder ' + decoderTypeName),
         { expr: 'customDecoder string (\\s ->\n' +
                 '        case s of\n' + enumType.getValues().map(v =>
                 '            "' + v.name + '" -> Ok ' + v.name[0].toUpperCase() + v.name.substr(1)).join('\n') + '\n' +
@@ -258,7 +257,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
       } else {
         name = 'AnonymousQuery';
       }
-      let resultType = name[0].toUpperCase() + name.substr(1) + 'Result';
+      let resultType = name[0].toUpperCase() + name.substr(1);
       // todo: Directives
       // SelectionSet
       let [fields, spreads] = walkSelectionSet(def.selectionSet, info);
@@ -282,7 +281,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
         query += print(seenFragments[name]) + ' ';
       }
       query += print(def);
-      let decodeFuncName = resultType[0].toLowerCase() + resultType.substr(1);
+      let decodeFuncName = resultType[0].toLowerCase() + resultType.substr(1) + 'Decoder';
       expose.push(funcName);
       expose.push(resultType);
 
@@ -367,7 +366,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
     let name = def.name.value;
 
     let decls: Array<ElmDecl> = [];
-    let resultType = name[0].toUpperCase() + name.substr(1) + 'Result';
+    let resultType = name[0].toUpperCase() + name.substr(1);
 
     // todo: Directives
 
@@ -375,7 +374,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
     let [fields, spreads] = walkSelectionSet(def.selectionSet, info);
     let type: ElmType = new ElmTypeRecord(fields, 'a')
     for (let spreadName of spreads) {
-      let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
+      let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + '_';
       type = new ElmTypeApp(typeName, [type]);
     }
     
@@ -433,7 +432,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
           let type: ElmType = new ElmTypeRecord(fields);
           // spreads
           for (let spreadName of spreads) {
-            let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
+            let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + '_';
             type = new ElmTypeApp(typeName, [type]);
           }
 
@@ -467,7 +466,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
       let type: ElmType = union ? union : new ElmTypeRecord(fields);
       // spreads
       for (let spreadName of spreads) {
-        let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + 'Result_';
+        let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + '_';
         type = new ElmTypeApp(typeName, [type]);
       }
       // list

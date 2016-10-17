@@ -88,7 +88,7 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
       } else {
         name = 'AnonymousQuery';
       }
-      let resultType = name[0].toUpperCase() + name.substr(1) + 'Result';
+      let resultType = name[0].toUpperCase() + name.substr(1);
       // todo: Directives
       // SelectionSet
       let expr = walkSelectionSet(def.selectionSet, info);
@@ -115,7 +115,7 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
     let name = def.name.value;
 
     let decls: Array<ElmDecl> = [];
-    let resultType = name[0].toUpperCase() + name.substr(1) + 'Result';
+    let resultType = name[0].toUpperCase() + name.substr(1);
 
     // todo: Directives
 
@@ -296,7 +296,7 @@ export function decoderFor(def: OperationDefinition | FragmentDefinition, info: 
         case 'String': return prefix + 'string';
       }
     } else if (type instanceof GraphQLEnumType) {
-      return prefix + type.name.toLowerCase();
+      return prefix + type.name.toLowerCase() + 'Decoder';
     } else {
       throw new Error('not a leaf type: ' + (<any>type).name);
     }
