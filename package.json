@@ -12,7 +12,6 @@
   },
   "author": "John Hewson",
   "license": "BSD",
-  "private": true,
   "dependencies": {
     "command-line-args": "^3.0.1",
     "graphql": "^0.6.2",
