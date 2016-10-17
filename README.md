@@ -1,33 +1,23 @@
-⚠ This is a work in progress!
-
----
-
 # elm-graphql
 
-`elm-graphql` aims to generate Elm code for making GraphQL queries in a type-safe manner.
-It's being developed at the bimonthly [Elm Hackathon](http://www.meetup.com/Elm-user-group-SF/).
-Contributions are welcome.
+`elm-graphql` generates Elm code for making GraphQL queries in a type-safe manner.
 
-This prototype consists of a code generator which takes GraphQL schema and named queries in a
+At compile time, `elm-graphql` takes GraphQL schema and named queries in a
 .graphql file and generates corresponding Elm types. The schema is obtained by introspection
 of a live GraphQL server.
 
-The type of each query is a single large record. We do not generate type aliases for each "object",
-because GraphQL allows different fields to be selected for the same type at different nesting
-levels within the same query. Elm's extensible records mean that there's really no reason to want
-to do this anyway.
+`elm-graphql` is written in TypeScript and uses Facebook's [graphql-js](https://github.com/graphql/graphql-js)
+to handle the GraphQL parsing.
 
-We use Facebook's [graphql-js](https://github.com/graphql/graphql-js) to parse a GraphQL
-schema.
+## Install
 
-## Build
+    npm install -g elm-graphql
 
-    cd tool
-    npm install
+## Usage
 
-This builds the code generator, but you'll need to check out my demo project to actually use it, see below.
-    
-## Demo
+    elm graphql
+
+## Example
 
 Check out my [elm-graphql-demo](https://github.com/jahewson/elm-graphql-demo) which provides a sample application and includes full build instructions.
 

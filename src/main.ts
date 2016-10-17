@@ -42,16 +42,19 @@ let moduleName = 'GraphQL.' + filename[0].toUpperCase() + filename.substr(1);
 
 let outPath = path.join(path.dirname(graphqlFile), filename + '.elm');
 
-let url = introspectionUrl;
-let data = { query: introspectionQuery.replace(/\n/g, '') };
 let method = options["method"] || "GET";
 let reqOpts = method == "GET"
-                ? { url, method, qs: data }
-                : { url,
-                    method,
-                    headers: [{ "Content-Type": "application/json" }],
-                    body: JSON.stringify(data)
-                  };
+      ? { url: introspectionUrl,
+          method,
+          qs: {
+            query: introspectionQuery.replace(/\n/g, '').replace(/\s+/g, ' ')
+          }
+        }
+      : { url: introspectionUrl,
+          method,
+          headers: [{ "Content-Type": "application/json" }],
+          body: JSON.stringify({ query: introspectionQuery })
+        };
 
 let verb = options['method'] || 'GET';
 
@@ -64,6 +67,7 @@ request(reqOpts, function (err, res, body) {
     let elm = queryToElm(queries, moduleName, liveUrl, verb, schema);
     fs.writeFileSync(outPath, elm);
   } else {
-    throw new Error('HTTP status ' + res.statusCode);
+    console.error('Error', res.statusCode, '-', res.statusMessage);
+    process.exit(1);
   }
 });
