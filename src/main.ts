@@ -30,15 +30,21 @@ let optionDefinitions = [
 
 let options: any = commandLineArgs(optionDefinitions);
 
+// usage
+if (options.help) {
+  usage();
+  process.exit(1);
+}
+
 // load config from elm-package.json
-if (!fs.existsSync('elm-package.json') && !options.help) {
+if (!fs.existsSync('elm-package.json')) {
   console.error('Error: expected elm-package.json');
   process.exit(1);
 }
 
 let elmPackageJson = JSON.parse(fs.readFileSync('elm-package.json', 'utf8'));
 
-if (options.init || options.help) {
+if (options.init) {
   // usage
   if (!options.endpoint) {
     usage();
