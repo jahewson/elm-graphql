@@ -79,7 +79,7 @@ export function queryToElm(graphql: string, moduleName: string, liveUrl: string,
     'Json.Decode exposing (..)',
     'Json.Encode exposing (encode)',
     'Http',
-    'GraphQL exposing (apply, maybeEncode, ID)'
+    'GraphQL exposing (apply, maybeEncode)'
   ], decls);
 }
 

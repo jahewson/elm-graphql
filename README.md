@@ -15,6 +15,12 @@ to handle the GraphQL parsing.
 
 ## Usage
 
+Configure the GraphQL endpoint URL. This will be saved in `elm-package.json`:
+
+    elm graphql --init URL
+
+Now you can generate an Elm module for each .graphql file:
+
     elm graphql
 
 ## Example
