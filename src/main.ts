@@ -43,6 +43,7 @@ if (!fs.existsSync('elm-package.json')) {
 }
 
 let elmPackageJson = JSON.parse(fs.readFileSync('elm-package.json', 'utf8'));
+let config: any = elmPackageJson['graphql'];
 
 if (options.init) {
   // usage
@@ -54,6 +55,7 @@ if (options.init) {
   elmPackageJson.graphql = {
     endpoint: options.endpoint
   };
+  config = elmPackageJson.graphql;
 
   if (options.schema) {
     elmPackageJson.schema = options.schema;
@@ -63,13 +65,16 @@ if (options.init) {
     elmPackageJson.method = options.method;
   }
 
-  fs.writeFileSync('elm-package.json', JSON.stringify(elmPackageJson, null, '    '));
-
-  console.log('Success! You should now run `elm package install jahewson/elm-graphql-module`.');
-  process.exit();
+  // check that the endpoint works
+  performIntrospectionQuery(body => {
+    fs.writeFileSync('elm-package.json', JSON.stringify(elmPackageJson, null, '    '));
+    
+    console.log('Success! You should now run `elm package install jahewson/elm-graphql-module`.');
+    process.exit();
+  });
 }
 
-let config: any = elmPackageJson['graphql'];
+
 
 if (!config) {
   console.error('elm-graphql is not configured for this package. You need to run `elm graphql --init [URL]`.');
@@ -80,39 +85,48 @@ if (!config) {
 let verb = config.method || 'GET';
 let endpointUrl = config.endpoint;
 
-// introspection query
-let introspectionUrl = config.schema || config.endpoint;
-if (!introspectionUrl) {
-  console.log('Error: missing graphql endpoint in elm-package.json');
-  process.exit(1);
-}
+performIntrospectionQuery(body => {
+  let result = JSON.parse(body);
+  let schema = buildClientSchema(result.data);
+  processFiles(schema);
+});
 
-let method = config.method || 'GET';
-let reqOpts = method == 'GET'
-  ? { url: introspectionUrl,
-      method,
-      qs: {
-        query: introspectionQuery.replace(/\n/g, '').replace(/\s+/g, ' ')
-      }
-    }
-  : { url: introspectionUrl,
-      method,
-      headers: [{ 'Content-Type': 'application/json' }],
-      body: JSON.stringify({ query: introspectionQuery })
-    };
-
-request(reqOpts, function (err, res, body) {
-  if (err) {
-    throw new Error(err);
-  } else if (res.statusCode == 200) {
-    let result = JSON.parse(body);
-    let schema = buildClientSchema(result.data);
-    processFiles(schema);
-  } else {
-    console.error('Error', res.statusCode, '-', res.statusMessage);
+function performIntrospectionQuery(callback: (body: string) => void) {
+  // introspection query
+  let introspectionUrl = config.schema || config.endpoint;
+  if (!introspectionUrl) {
+    console.log('Error: missing graphql endpoint in elm-package.json');
     process.exit(1);
   }
-});
+
+  let method = config.method || 'GET';
+  let reqOpts = method == 'GET'
+    ? { url: introspectionUrl,
+        method,
+        qs: {
+          query: introspectionQuery.replace(/\n/g, '').replace(/\s+/g, ' ')
+        }
+      }
+    : { url: introspectionUrl,
+        method,
+        headers: [{ 'Content-Type': 'application/json' }],
+        body: JSON.stringify({ query: introspectionQuery })
+      };
+
+  request(reqOpts, function (err, res, body) {
+    if (err) {
+      throw new Error(err);
+    } else if (res.statusCode == 200) {
+      callback(body);
+    } else {
+      console.error('Error', res.statusCode, '-', res.statusMessage);
+      console.error('\n', res.headers);
+      console.error('\n', body.trim());
+      console.error('\nThe GraphQL server at ' + introspectionUrl + ' responded with an error.');
+      process.exit(1);
+    }
+  });
+}
 
 function processFiles(schema: GraphQLSchema) {
   let paths = scanDir('.', []);
