@@ -129,7 +129,7 @@ export function typeToString(ty: ElmType, level: number, isField?: boolean): str
             ty.fields.map(f => fieldToString(f, level + 1)).join(`${indent}, `) +
             `${indent}}`;
   } else {
-    throw new Error('unexpected type: ' + ty.constructor.name + ' ' + JSON.stringify(ty));
+    console.error('unexpected type: ' +  JSON.stringify(ty)); 
   }
 }
 
