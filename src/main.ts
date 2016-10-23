@@ -86,12 +86,12 @@ let verb = config.method || 'GET';
 let endpointUrl = config.endpoint;
 
 performIntrospectionQuery(body => {
-  let result = JSON.parse(body);
+  let result = body;
   let schema = buildClientSchema(result.data);
   processFiles(schema);
 });
 
-function performIntrospectionQuery(callback: (body: string) => void) {
+function performIntrospectionQuery(callback: (body: any) => void) {
   // introspection query
   let introspectionUrl = config.schema || config.endpoint;
   if (!introspectionUrl) {
@@ -110,7 +110,8 @@ function performIntrospectionQuery(callback: (body: string) => void) {
     : { url: introspectionUrl,
         method,
         headers: [{ 'Content-Type': 'application/json' }],
-        body: JSON.stringify({ query: introspectionQuery })
+        json: true,
+        body: { query: introspectionQuery }
       };
 
   request(reqOpts, function (err, res, body) {
