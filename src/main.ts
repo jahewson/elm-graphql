@@ -58,11 +58,11 @@ if (options.init) {
   config = elmPackageJson.graphql;
 
   if (options.schema) {
-    elmPackageJson.schema = options.schema;
+    elmPackageJson.graphql.schema = options.schema;
   }
 
   if (options.method) {
-    elmPackageJson.method = options.method;
+    elmPackageJson.graphql.method = options.method;
   }
 
   // check that the endpoint works
