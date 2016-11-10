@@ -161,7 +161,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
     });
     return fragments;
   }
-  
+
   function collectUnions(def: Definition, unions: GraphQLUnionMap = {}): GraphQLUnionMap {
     let info = new TypeInfo(schema);
     visit(doc, {
@@ -189,6 +189,15 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
           let name = field.name.value;
           let type = info.getType();
           collectEnumsForType(type, enums);
+        } else if (node.kind == 'OperationDefinition') {
+          let def = <OperationDefinition>node;
+          if (def.variableDefinitions) {
+            for (let varDef of def.variableDefinitions) {
+              let type = typeFromAST(schema, varDef.type);
+              collectEnumsForType(type, enums);
+            }
+          }
+
         }
         // todo: do we need to walk into fragment spreads?
       },
@@ -242,7 +251,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
     let params = types.map((t, i) => alphabet[i]).join(' ');
     return new ElmTypeDecl(union.name + ' ' + params, types.map((t, i) => elmSafeName(t.name) + ' ' + alphabet[i]));
   }
-  
+
   function walkOperationDefinition(def: OperationDefinition, info: TypeInfo): Array<ElmDecl> {
     info.enter(def);
     if (!info.getType()) {
@@ -305,7 +314,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
                      `\n                            Just val -> ${encoderForInputType(p.schemaType, true)} val` +
                      `\n                            Nothing -> Json.Encode.null`
                } else {
-                 encoder = encoderForInputType(p.schemaType, true, 'params.' + p.name);
+                 encoder = encoderForInputType(p.schemaType, false, 'params.' + p.name);
                }
                return `("${p.name}", ${encoder})`;
              })
@@ -320,7 +329,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
          decodeFuncName, [],
          new ElmTypeName('Decoder ' + resultTypeName),
          decoderForQuery(def, info, schema, fragmentDefinitionMap, seenFragments) ));
-      
+
       info.leave(def);
       return decls;
     }
@@ -350,6 +359,8 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
         case 'ID':
         case 'String': encoder = 'Json.Encode.string ' + value; break;
       }
+    } else if (type instanceof GraphQLEnumType) {
+      encoder = '(Json.Encode.string << toString) ' + value;
     } else {
       throw new Error('not implemented: ' + type.constructor.name);
     }
@@ -377,7 +388,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
       let typeName = spreadName[0].toUpperCase() + spreadName.substr(1) + '_';
       type = new ElmTypeApp(typeName, [type]);
     }
-    
+
     decls.push(new ElmTypeAliasDecl(resultType + '_', type, ['a']));
     decls.push(new ElmTypeAliasDecl(resultType, new ElmTypeApp(resultType + '_', [new ElmTypeRecord([])])));
 
@@ -411,11 +422,11 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
       return [fields, spreads, null];
     }
   }
-  
+
   function walkUnionSelectionSet(selSet: SelectionSet, info: TypeInfo): ElmType {
     let union = <GraphQLUnionType>info.getType();
 
-      let typeMap: { [name: string]: ElmType } = {}; 
+      let typeMap: { [name: string]: ElmType } = {};
       for (let type of union.getTypes()) {
         typeMap[type.name] = new ElmTypeRecord([]);
       }
@@ -427,7 +438,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
           info.enter(inline);
           let [fields, spreads] = walkSelectionSet(inline.selectionSet, info);
           info.leave(inline);
-          
+
           // record
           let type: ElmType = new ElmTypeRecord(fields);
           // spreads
@@ -489,7 +500,7 @@ function translateQuery(uri: string, doc: Document, schema: GraphQLSchema, verb:
 
 export function typeToElm(type: GraphQLType, isNonNull = false): ElmType {
   let elmType: ElmType;
-  
+
   if (type instanceof GraphQLScalarType) {
     switch (type.name) {
       case 'Int': elmType = new ElmTypeName('Int'); break;
